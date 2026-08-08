@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 declare global {
-  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
+  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; isSiteMonitoringEnabled?: () => boolean; getCurrentStreakDays?: () => number; sendAiHighRiskAlert?: () => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
 }
 
 type Tab = "home" | "chat" | "circle" | "safety" | "monitor";
@@ -32,12 +32,15 @@ function Header() {
 
 function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
+  const [nativeStreak, setNativeStreak] = useState<number | null>(null);
   async function loadMonitor() {
     const response = await fetch("/api/monitor");
     if (response.ok) setMonitor(await response.json());
   }
   useEffect(() => {
     loadMonitor();
+    const streak = window.LudoGuardNative?.getCurrentStreakDays?.();
+    if (typeof streak === "number") setNativeStreak(streak);
   }, []);
   const summary = monitor?.summary;
   const todayBlocked = summary?.todayBlocked ?? false;
@@ -52,7 +55,7 @@ function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
       <div className="shield-orb"><span>✓</span></div>
       <h2>{todayBlocked ? "Попытка остановлена" : "Сегодня ты держишься"}</h2>
       <p>{todayBlocked ? "Мониторинг заблокировал сайт" : "Без посещения букмекерских сайтов"}</p>
-      <div className="status-footer"><span>Текущая серия</span><strong>{summary ? `${summary.currentStreak} ${summary.currentStreak === 1 ? "день" : "дней"}` : "—"}</strong></div>
+      <div className="status-footer"><span>Текущая серия</span><strong>{nativeStreak !== null ? `${nativeStreak} ${nativeStreak === 1 ? "день" : "дней"}` : summary ? `${summary.currentStreak} дней` : "—"}</strong></div>
     </section>
 
     <div className="section-row"><div><p className="eyebrow">ТВОЙ ФОКУС</p><h3>Маленькие шаги<br />составляют путь</h3></div><span className="sparkle">✦</span></div>
@@ -71,15 +74,17 @@ function Chat() {
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([{ role: "assistant", content: "Привет. Я рядом, если захочешь поговорить. Как прошёл твой день?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [riskNotice, setRiskNotice] = useState("");
   const endOfChat = useRef<HTMLDivElement>(null);
   useEffect(() => { endOfChat.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
   async function send(text = input) {
     if (!text.trim() || loading) return;
     const next = [...messages, { role: "user" as const, content: text.trim() }]; setMessages(next); setInput(""); setLoading(true);
-    try { const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) }); const data = await response.json(); setMessages([...next, { role: "assistant", content: data.content || data.error || "Я рядом." }]); } finally { setLoading(false); }
+    try { const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) }); const data = await response.json(); if (data.risk === "high") window.LudoGuardNative?.sendAiHighRiskAlert?.(); setRiskNotice(data.egovReminder ? "Средний риск: в eGov Mobile открой «Услуги → Туризм и спорт → Сервис по ограничению участия в азартных играх и (или) пари»." : ""); setMessages([...next, { role: "assistant", content: data.content || data.error || "Сформулируй, что происходит прямо сейчас." }]); } finally { setLoading(false); }
   }
   return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК</p><div className="page-title-row"><div><h1>Как ты сегодня?</h1></div></div>
-    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /> Ludo · твой помощник</div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("Мне тревожно")}>Мне тревожно</button><button onClick={() => send("Всё хорошо")}>Всё хорошо</button></div>}<div className="chat-composer"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Напиши, что чувствуешь…" /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}>→</button></div></div>
+    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /> Ludo AI <span className="chat-online">онлайн</span></div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("Мне тревожно")}>Мне тревожно</button><button onClick={() => send("Я хочу отыграться")}>Хочу отыграться</button></div>}<div className="chat-composer"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Напиши, что происходит…" /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}>→</button></div></div>
+    {riskNotice && <div className="egov-notice"><strong>Практический шаг</strong><p>{riskNotice}</p></div>}
     <div className="chat-disclaimer">Диалог помогает заметить изменения в состоянии. Это не медицинская диагностика.</div>
   </section>;
 }
@@ -123,7 +128,7 @@ function Safety({ onMonitor }: { onMonitor: () => void }) {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactError, setContactError] = useState("");
-  useEffect(() => { window.LudoGuardNative?.enableUninstallGuard?.(); }, []);
+  useEffect(() => { window.LudoGuardNative?.enableUninstallGuard?.(); const enabled = window.LudoGuardNative?.isSiteMonitoringEnabled?.(); if (typeof enabled === "boolean") setSiteFilterEnabled(enabled); }, []);
   function setSiteFilter(value: boolean) {
     setSiteFilterEnabled(value);
     if (typeof window !== "undefined") window.LudoGuardNative?.setSiteMonitoringEnabled?.(value);

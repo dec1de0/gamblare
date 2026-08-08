@@ -24,10 +24,12 @@ public class WebsiteVpnService extends VpnService {
     private ParcelFileDescriptor vpn;
     private Thread worker;
     private volatile boolean running;
+    private boolean voluntaryStop;
     private final Map<String, Long> lastAlerts = new HashMap<>();
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            voluntaryStop = true;
             stopMonitoring();
             return START_NOT_STICKY;
         }
@@ -60,8 +62,9 @@ public class WebsiteVpnService extends VpnService {
             // can then inspect every regular DNS query before forwarding it upstream.
             vpn = new Builder().setSession("LudoGuard website protection").addAddress("10.0.0.2", 32).addRoute("10.0.0.1", 32).addDnsServer("10.0.0.1").establish();
             running = true;
+            getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_enabled", true).apply();
             worker = new Thread(this::readPackets, "ludoguard-dns"); worker.start();
-        } catch (Exception ignored) { stopSelf(); }
+        } catch (Exception ignored) { getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_enabled", false).apply(); stopSelf(); }
     }
 
     private void readPackets() {
@@ -97,12 +100,14 @@ public class WebsiteVpnService extends VpnService {
     private void alertOnce(String domain) { long now = System.currentTimeMillis(); Long last = lastAlerts.get(domain); if (last != null && now - last < 60_000) return; lastAlerts.put(domain, now); WebsiteAlert.notify(this, domain); }
     private void stopMonitoring() {
         running = false;
+        getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_enabled", false).apply();
         try { if (vpn != null) vpn.close(); } catch (Exception ignored) {}
         vpn = null;
         stopForeground(true);
         stopSelf();
     }
-    @Override public void onRevoke() { stopMonitoring(); super.onRevoke(); }
+    public static boolean isMonitoringEnabled(android.content.Context context) { return context.getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).getBoolean("site_filter_enabled", false); }
+    @Override public void onRevoke() { if (!voluntaryStop) { WebsiteAlert.notifySecurityEvent(this, "Пользователь пытается отключить VPN-защиту LudoGuard."); getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", false).apply(); } stopMonitoring(); super.onRevoke(); }
     @Override public void onDestroy() { stopMonitoring(); super.onDestroy(); }
     @Override public android.os.IBinder onBind(Intent intent) { return super.onBind(intent); }
 }

@@ -6,7 +6,7 @@ import android.content.Intent;
 
 public class AppDeviceAdminReceiver extends DeviceAdminReceiver {
     @Override public CharSequence onDisableRequested(Context context, Intent intent) {
-        WebsiteAlert.notifySecurityEvent(context, "Попытка отключить защиту LudoGuard");
-        return "LudoGuard отправит экстренному контакту сигнал о попытке отключения защиты.";
+        WebsiteAlert.notifySecurityEvent(context, "Пользователь пытается удалить приложение LudoGuard.");
+        return "LudoGuard отправит экстренному контакту сигнал о попытке удаления приложения.";
     }
 }
