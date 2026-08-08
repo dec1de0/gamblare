@@ -40,3 +40,9 @@ yarn-error.log*
 /\.gradle-local/
 /outputs/
 /work/
+
+# Android generated and machine-specific files
+/android-app/.gradle/
+/android-app/app/build/
+/android-app/local.properties
+*.apk
