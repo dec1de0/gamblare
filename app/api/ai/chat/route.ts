@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSupabaseUser, supabaseEnabled, supabaseForRequest } from "../../../../lib/supabase";
 
 type Risk = "low" | "medium" | "high";
 type ChatMessage = { role?: string; content?: string };
@@ -24,6 +25,17 @@ function fallbackFor(risk: Risk) {
   return "Давай без общих слов: что произошло прямо перед тем, как захотелось играть?";
 }
 
+async function saveConversationTurn(request: Request, userText: string, assistantText: string) {
+  if (!supabaseEnabled || !userText) return;
+  const user = await getSupabaseUser(request);
+  if (!user) return;
+  const { client } = supabaseForRequest(request);
+  await client.from("chat_messages").insert([
+    { user_id: user.id, role: "user", content: userText },
+    { user_id: user.id, role: "assistant", content: assistantText },
+  ]);
+}
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const messages: ChatMessage[] = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
@@ -32,9 +44,12 @@ export async function POST(request: Request) {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   const lastUserMessage = messages.filter((item) => item.role === "user").at(-1)?.content?.trim() ?? "";
 
-  if (!apiKey) return NextResponse.json({ content: fallback, risk, egovReminder: risk === "medium" });
+  if (!apiKey) {
+    await saveConversationTurn(request, lastUserMessage, fallback);
+    return NextResponse.json({ content: fallback, risk, egovReminder: risk === "medium" });
+  }
 
-  const systemPrompt = `Ты — Ludo AI, внимательный, спокойный и прямой собеседник для человека с риском лудомании. Пиши только готовый ответ пользователю на русском, 2–4 коротких предложения. Никаких chain-of-thought, анализа, служебных пометок, markdown, списков и фраз вроде «я рядом» в каждом сообщении. Не повторяй формулировки предыдущих ответов и не отвечай шаблонно. Сначала назови конкретный смысл того, что сказал человек, затем дай один реалистичный шаг на ближайшие 10–20 минут и задай один новый, уместный вопрос. Тон: тёплый, взрослый, уверенный; не сюсюкай и не осуждай. В этом приложении слова «ломка» и «ставить» относятся к азартным ставкам, а не к наркотикам. Если есть ломка, намерение сделать ставку, потеря контроля, долги или попытка отыграться — прямо обозначь высокий риск и помоги отложить ставку. При непосредственной опасности предложи связаться с близким или экстренной службой Казахстана. Последнее сообщение пользователя: «${lastUserMessage.replaceAll("\"", "'")}».`;
+  const systemPrompt = `Ты — Ludo AI, внимательный, спокойный и прямой собеседник для человека с риском лудомании. Пиши только готовый ответ пользователю на русском, 2–4 коротких предложения. Никаких chain-of-thought, анализа, служебных пометок, markdown, списков и фраз вроде «я рядом» в каждом сообщении. Не повторяй формулировки предыдущих ответов и не отвечай шаблонно. Сначала назови конкретный смысл того, что сказал человек, затем дай один реалистичный шаг на ближайшие 10–20 минут и задай один новый, уместный вопрос. Тон: тёплый, взрослый, уверенный; не сюсюкай и не осуждай. В этом приложении слова «ломка» и «ставить» относятся к азартным ставкам, а не к наркотикам. При среднем риске есть тяга к азарту, тревога или желание «разрядиться», но пользователь не говорит, что прямо сейчас сделает ставку, потерял контроль или деньги. Признай риск, объясни, что это подходящий момент для профилактики, и предложи самоограничение в eGov Mobile без давления и без SMS. Если есть ломка, намерение сделать ставку, потеря контроля, долги или попытка отыграться — прямо обозначь высокий риск и помоги отложить ставку. При непосредственной опасности предложи связаться с близким или экстренной службой Казахстана. Последнее сообщение пользователя: «${lastUserMessage.replaceAll("\"", "'")}».`;
 
   const response = await fetch("https://api.deepseek.com/chat/completions", {
     method: "POST",
@@ -55,5 +70,6 @@ export async function POST(request: Request) {
 
   const data = await response.json();
   const content = (data.choices?.[0]?.message?.content ?? "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim() || fallback;
+  await saveConversationTurn(request, lastUserMessage, content);
   return NextResponse.json({ content, risk, egovReminder: risk === "medium" });
 }

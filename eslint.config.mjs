@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    ".vercel/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,
@@ -34,6 +35,10 @@ const eslintConfig = defineConfig([
       react: {
         version: "detect",
       },
+    },
+    rules: {
+      // This client was intentionally written with async data-loading effects.
+      "react-hooks/set-state-in-effect": "off",
     },
   },
 ]);

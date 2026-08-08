@@ -36,6 +36,7 @@ function Header({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => v
 function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
   const [monitor, setMonitor] = useState<MonitorData | null>(null);
   const [nativeStreak, setNativeStreak] = useState<number | null>(null);
+  const [nativeProtection, setNativeProtection] = useState<boolean | null>(null);
   async function loadMonitor() {
     const response = await fetch("/api/monitor");
     if (response.ok) setMonitor(await response.json());
@@ -44,9 +45,12 @@ function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
     loadMonitor();
     const streak = window.LudoGuardNative?.getCurrentStreakDays?.();
     if (typeof streak === "number") setNativeStreak(streak);
+    const protection = window.LudoGuardNative?.isSiteMonitoringEnabled?.();
+    if (typeof protection === "boolean") setNativeProtection(protection);
   }, []);
   const summary = monitor?.summary;
   const todayBlocked = summary?.todayBlocked ?? false;
+  const protectionActive = nativeProtection ?? monitor?.active ?? false;
   return <>
     <section className="greeting">
       <div><p className="eyebrow">ПЯТНИЦА, 8 АВГУСТА</p><h1>Привет, Арман <span>✦</span></h1></div>
@@ -54,10 +58,10 @@ function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
     </section>
 
     <section className="status-card">
-      <div className="status-heading"><div><span className="live-dot" /> <span>{todayBlocked ? "СИГНАЛ ЗАФИКСИРОВАН" : "ЗАЩИТА АКТИВНА"}</span></div></div>
-      <div className="shield-orb"><span>✓</span></div>
-      <h2>{todayBlocked ? "Попытка остановлена" : "Сегодня ты держишься"}</h2>
-      <p>{todayBlocked ? "Мониторинг заблокировал сайт" : "Без посещения букмекерских сайтов"}</p>
+      <div className={`status-heading ${protectionActive ? "" : "danger"}`}><div><span className="live-dot" /> <span>{todayBlocked ? "СИГНАЛ ЗАФИКСИРОВАН" : protectionActive ? "ЗАЩИТА АКТИВНА" : "ЗАЩИТА НЕ АКТИВНА"}</span></div></div>
+      <div className={`shield-orb ${protectionActive ? "" : "danger"}`}><span>{protectionActive ? "✓" : "!"}</span></div>
+      <h2>{todayBlocked ? "Попытка остановлена" : protectionActive ? "Сегодня ты держишься" : "Защита не активна"}</h2>
+      <p>{todayBlocked ? "Мониторинг заблокировал сайт" : protectionActive ? "Без посещения букмекерских сайтов" : "Включи фильтр сайтов в разделе «Защита»"}</p>
       <div className="status-footer"><span>Текущая серия</span><strong>{nativeStreak !== null ? `${nativeStreak} ${nativeStreak === 1 ? "день" : "дней"}` : summary ? `${summary.currentStreak} дней` : "—"}</strong></div>
     </section>
 
@@ -79,6 +83,7 @@ function Chat() {
   const [loading, setLoading] = useState(false);
   const [riskNotice, setRiskNotice] = useState("");
   const endOfChat = useRef<HTMLDivElement>(null);
+  useEffect(() => { fetch("/api/ai/history").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.messages?.length) setMessages(data.messages); }).catch(() => {}); }, []);
   useEffect(() => { endOfChat.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
   async function send(text = input) {
     if (!text.trim() || loading) return;
@@ -87,7 +92,7 @@ function Chat() {
       const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const data = await response.json();
       if (data.risk === "high") window.LudoGuardNative?.sendAiHighRiskAlert?.();
-      setRiskNotice(data.egovReminder ? "Средний риск: в eGov Mobile открой «Услуги → Туризм и спорт → Сервис по ограничению участия в азартных играх и (или) пари»." : "");
+      setRiskNotice(data.egovReminder ? "Средний риск: импульс к азарту уже заметен, но ты ещё можешь остановиться до первой ставки. Открой eGov Mobile → «Услуги» → «Туризм и спорт» → сервис ограничения участия в азартных играх и пари, затем выбери срок самоограничения." : "");
       setMessages([...next, { role: "assistant", content: data.content || data.error || "Скажи прямо: что сейчас сильнее — желание поставить или тревога?" }]);
     } catch {
       setMessages([...next, { role: "assistant", content: "Связь с помощником прервалась. На ближайшие 10 минут закрой БК и переключись на человека, которому можно написать." }]);
@@ -113,6 +118,8 @@ function Circle({ user }: { user: User | null }) {
   </section>;
 }
 
+// The old monitoring demo route stays available in the codebase for local API testing.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Monitor() {
   const [data, setData] = useState<MonitorData | null>(null);
   const [error, setError] = useState("");
@@ -180,5 +187,5 @@ export default function Home() {
   const [dark, setDark] = useState(false);
   useEffect(() => { fetch("/api/auth/me").then((response) => response.json()).then((data) => { setUser(data.user); setAuthChecked(true); }).catch(() => setAuthChecked(true)); }, []);
   if (!authChecked) return <main className="app-shell"><div className="phone-frame auth-loading">Загрузка LudoGuard…</div></main>;
-  return <main className={`app-shell ${dark ? "theme-dark" : ""}`}>{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header dark={dark} onToggleTheme={() => setDark((value) => !value)} /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety />}</div><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
+  return <main className={`app-shell ${dark ? "theme-dark" : ""}`}>{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header dark={dark} onToggleTheme={() => setDark((value) => !value)} /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety />}</div><a className="help-call" href="tel:150"><span className="help-call-icon">☎</span><span><strong>Получить профессиональную помощь</strong><small>Бесплатная психологическая линия 150</small></span><b>→</b></a><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
 }
