@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 declare global {
-  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; enableUninstallGuard?: () => void } }
+  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
 }
 
 type Tab = "home" | "chat" | "circle" | "safety" | "monitor";
@@ -130,7 +130,7 @@ function Safety({ onMonitor }: { onMonitor: () => void }) {
   }
   async function loadContacts() {
     const response = await fetch("/api/emergency-contacts");
-    if (response.ok) setContacts((await response.json()).contacts ?? []);
+    if (response.ok) { const next = (await response.json()).contacts ?? []; setContacts(next); if (next[0]) window.LudoGuardNative?.setEmergencyPhone?.(next[0].phone); }
   }
   useEffect(() => { loadContacts(); }, []);
   async function addContact(event: FormEvent) {
@@ -140,11 +140,12 @@ function Safety({ onMonitor }: { onMonitor: () => void }) {
     const data = await response.json();
     if (!response.ok) { setContactError(data.error ?? "Не удалось добавить контакт."); return; }
     setContacts((current) => [...current, data.contact]);
+    window.LudoGuardNative?.setEmergencyPhone?.(data.contact.phone);
     setContactName(""); setContactPhone(""); setShowContactForm(false);
   }
   async function removeContact(id: string) {
     const response = await fetch("/api/emergency-contacts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    if (response.ok) setContacts((current) => current.filter((contact) => contact.id !== id));
+    if (response.ok) setContacts((current) => { const next = current.filter((contact) => contact.id !== id); if (next[0]) window.LudoGuardNative?.setEmergencyPhone?.(next[0].phone); else window.LudoGuardNative?.clearEmergencyPhone?.(); return next; });
   }
   return <section className="page-section"><p className="eyebrow">НАСТРОЙКИ БЕЗОПАСНОСТИ</p><h1>Защита</h1><p className="lead">Ты выбираешь, какая поддержка тебе нужна.</p>
     <div className="settings-list"><div className="setting"><div className="setting-icon green">✓</div><div><strong>Мониторинг сайтов</strong><p>Букмекерские сайты</p></div><button className={`toggle ${monitoringEnabled ? "on" : ""}`} aria-label="Переключить мониторинг сайтов" aria-pressed={monitoringEnabled} onClick={() => setMonitoringEnabled((value) => !value)} /></div><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>{siteFilterEnabled ? "DNS-защита включена" : "DNS-защита выключена"}</p></div><button className={`toggle ${siteFilterEnabled ? "on" : ""}`} aria-label="Переключить фильтр сайтов" aria-pressed={siteFilterEnabled} onClick={() => setSiteFilter(!siteFilterEnabled)} /></div>{contacts.map((contact) => <div className="setting" key={contact.id}><div className="setting-icon orange">♧</div><div><strong>{contact.name}</strong><p>{contact.phone}</p></div><button className="contact-remove" onClick={() => removeContact(contact.id)} aria-label={`Удалить контакт ${contact.name}`}>×</button></div>)}{contacts.length < 3 && <button className="contact-add" onClick={() => { setShowContactForm(true); setContactError(""); }}>+ Добавить экстренный контакт <span>{contacts.length}/3</span></button>}{showContactForm && <form className="contact-form" onSubmit={addContact}><input required value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Имя контакта" /><input required value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Номер телефона" type="tel" />{contactError && <p className="form-error">{contactError}</p>}<div><button type="button" className="contact-cancel" onClick={() => setShowContactForm(false)}>Отмена</button><button className="primary" type="submit">Сохранить</button></div></form>}<div className="setting"><div className="setting-icon pink">!</div><div><strong>Сигнал при удалении</strong><p>{deletionSignalEnabled ? "Уведомить экстренный контакт" : "Уведомления выключены"}</p></div><button className={`toggle ${deletionSignalEnabled ? "on" : ""}`} aria-label="Переключить сигнал при удалении" aria-pressed={deletionSignalEnabled} onClick={() => setDeletionSignalEnabled((value) => !value)} /></div></div>

@@ -40,10 +40,22 @@ public class WebAppActivity extends Activity {
         }
     }
 
+    private void setEmergencyPhone(String phone) {
+        String normalized = phone == null ? "" : phone.replaceAll("[^0-9+]", "");
+        if (normalized.matches("8\\d{10}")) normalized = "+7" + normalized.substring(1);
+        else if (normalized.matches("7\\d{10}")) normalized = "+" + normalized;
+        getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putString("emergency_phone", normalized).apply();
+        if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission("android.permission.SEND_SMS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.SEND_SMS"}, 21);
+    }
+
+    private void clearEmergencyPhone() { getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().remove("emergency_phone").apply(); }
+
     private final class NativeBridge {
         @JavascriptInterface public void setSiteMonitoringEnabled(boolean enabled) {
             runOnUiThread(() -> { if (enabled) startWebsiteVpn(); else stopWebsiteVpn(); });
         }
         @JavascriptInterface public void enableUninstallGuard() { runOnUiThread(WebAppActivity.this::enableUninstallGuard); }
+        @JavascriptInterface public void setEmergencyPhone(String phone) { runOnUiThread(() -> WebAppActivity.this.setEmergencyPhone(phone)); }
+        @JavascriptInterface public void clearEmergencyPhone() { runOnUiThread(WebAppActivity.this::clearEmergencyPhone); }
     }
 }
