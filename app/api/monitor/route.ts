@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
 const monitored = [
-  { name: "Olimpbet", type: "Приложение", packageName: "kz.olimpbet.app", status: "ЗАБЛОКИРОВАНО", risk: "high" },
+  { name: "Olimpbet", type: "Веб-сайт", packageName: "olimpbet.kz", status: "ФИЛЬТРУЕТСЯ", risk: "high" },
   { name: "Parimatch", type: "Веб-сайт", packageName: "parimatch.kz", status: "ФИЛЬТРУЕТСЯ", risk: "high" },
   { name: "1xBet", type: "Веб-сайт", packageName: "1xbet.kz", status: "ФИЛЬТРУЕТСЯ", risk: "high" },
-  { name: "Fonbet", type: "Приложение", packageName: "kz.fonbet.app", status: "НАБЛЮДЕНИЕ", risk: "medium" }
+  { name: "Fonbet", type: "Веб-сайт", packageName: "fonbet.kz", status: "ФИЛЬТРУЕТСЯ", risk: "medium" },
+  { name: "Mostbet", type: "Веб-сайт", packageName: "mostbet.kz", status: "ФИЛЬТРУЕТСЯ", risk: "high" }
 ];
 
 export async function GET() {

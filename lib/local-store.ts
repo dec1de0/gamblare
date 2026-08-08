@@ -5,7 +5,8 @@ import seed from "../data/ludoguard.json";
 export type User = { id: string; name: string; email: string; salt: string; passwordHash: string; createdAt: string };
 export type Comment = { id: string; authorName: string; text: string; createdAt: string };
 export type Post = { id: string; authorId: string; authorName: string; text: string; likes: number; likedBy: string[]; comments: Comment[]; createdAt: string };
-export type Store = { users: User[]; posts: Post[] };
+export type EmergencyContact = { id: string; userId: string; name: string; phone: string; createdAt: string };
+export type Store = { users: User[]; posts: Post[]; emergencyContacts?: EmergencyContact[] };
 
 // Vinext's local worker changes process.cwd() to /bundle during development.
 // PWD remains the project directory, which keeps this demo store local to the workspace.

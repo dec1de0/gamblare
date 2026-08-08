@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+
+declare global {
+  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void } }
+}
 
 type Tab = "home" | "chat" | "circle" | "safety" | "monitor";
 type User = { id: string; name: string; email: string };
-type Comment = { id: string; authorName: string; text: string; createdAt: string };
-type Post = { id: string; authorName: string; text: string; likes: number; likedBy: string[]; comments: Comment[]; createdAt: string };
+type Comment = { id: string; text: string; createdAt: string };
+type Post = { id: string; text: string; likes: number; likedBy: string[]; liked?: boolean; comments: Comment[]; createdAt: string };
+type MonitorEvent = { id: string; app: string; action: string; result: string; time: string; createdAt: string };
+type SafetySummary = { currentStreak: number; todayBlocked: boolean; todayEvents: number; lastEventAt: string | null };
+type MonitorData = { active: boolean; mode: string; monitored: { name: string; type: string; status: string; risk: string }[]; events: MonitorEvent[]; summary: SafetySummary | null };
+type EmergencyContact = { id: string; name: string; phone: string; createdAt: string };
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "home", label: "Главная", icon: "⌂" },
@@ -14,16 +22,25 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "safety", label: "Защита", icon: "◇" },
 ];
 
-function Header({ onHelp }: { onHelp: () => void }) {
+function Header() {
   return (
     <header className="topbar">
       <div className="brand"><span className="brand-mark">✦</span><span>LUDOGUARD</span></div>
-      <button className="icon-button" aria-label="Быстрая помощь" onClick={onHelp}>?</button>
     </header>
   );
 }
 
-function Dashboard({ onHelp, onTab }: { onHelp: () => void; onTab: (tab: Tab) => void }) {
+function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
+  const [monitor, setMonitor] = useState<MonitorData | null>(null);
+  async function loadMonitor() {
+    const response = await fetch("/api/monitor");
+    if (response.ok) setMonitor(await response.json());
+  }
+  useEffect(() => {
+    loadMonitor();
+  }, []);
+  const summary = monitor?.summary;
+  const todayBlocked = summary?.todayBlocked ?? false;
   return <>
     <section className="greeting">
       <div><p className="eyebrow">ПЯТНИЦА, 8 АВГУСТА</p><h1>Привет, Арман <span>✦</span></h1></div>
@@ -31,12 +48,11 @@ function Dashboard({ onHelp, onTab }: { onHelp: () => void; onTab: (tab: Tab) =>
     </section>
 
     <section className="status-card">
-      <div className="status-heading"><div><span className="live-dot" /> <span>ЗАЩИТА АКТИВНА</span></div><span className="status-time">обновлено 2 мин назад</span></div>
+      <div className="status-heading"><div><span className="live-dot" /> <span>{todayBlocked ? "СИГНАЛ ЗАФИКСИРОВАН" : "ЗАЩИТА АКТИВНА"}</span></div></div>
       <div className="shield-orb"><span>✓</span></div>
-      <h2>Сегодня ты держишься</h2>
-      <p>Без букмекерских приложений</p>
-      <div className="progress"><span /></div>
-      <div className="status-footer"><span>Текущая серия</span><strong>4 дня</strong></div>
+      <h2>{todayBlocked ? "Попытка остановлена" : "Сегодня ты держишься"}</h2>
+      <p>{todayBlocked ? "Мониторинг заблокировал сайт" : "Без посещения букмекерских сайтов"}</p>
+      <div className="status-footer"><span>Текущая серия</span><strong>{summary ? `${summary.currentStreak} ${summary.currentStreak === 1 ? "день" : "дней"}` : "—"}</strong></div>
     </section>
 
     <div className="section-row"><div><p className="eyebrow">ТВОЙ ФОКУС</p><h3>Маленькие шаги<br />составляют путь</h3></div><span className="sparkle">✦</span></div>
@@ -47,36 +63,24 @@ function Dashboard({ onHelp, onTab }: { onHelp: () => void; onTab: (tab: Tab) =>
       <button className="focus-tile dark" onClick={() => onTab("safety")}><span className="tile-icon">◇</span><span className="tile-label">Настроить<br />защиту</span><span className="arrow">↗</span></button>
     </section>
 
-    <section className="alert-card"><div className="alert-icon">!</div><div><strong>Если станет трудно</strong><p>Твой экстренный контакт на связи</p></div><button onClick={onHelp} aria-label="Позвонить">↗</button></section>
     <p className="privacy-note">Твои данные — только твои. Мы не продаём и не передаём их без твоего согласия.</p>
   </>;
 }
 
-function Chat({ onHelp }: { onHelp: () => void }) {
+function Chat() {
   const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([{ role: "assistant", content: "Привет. Я рядом, если захочешь поговорить. Как прошёл твой день?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [assessment, setAssessment] = useState<{ question: string; signals: string[]; score: number } | null>(null);
-  const [assessmentAnswer, setAssessmentAnswer] = useState("");
-  const [aiConsent, setAiConsent] = useState(false);
-  const [consentPrompt, setConsentPrompt] = useState(false);
+  const endOfChat = useRef<HTMLDivElement>(null);
+  useEffect(() => { endOfChat.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, loading]);
   async function send(text = input) {
     if (!text.trim() || loading) return;
-    if (!aiConsent) { setConsentPrompt(true); return; }
     const next = [...messages, { role: "user" as const, content: text.trim() }]; setMessages(next); setInput(""); setLoading(true);
     try { const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) }); const data = await response.json(); setMessages([...next, { role: "assistant", content: data.content || data.error || "Я рядом." }]); } finally { setLoading(false); }
   }
-  async function runAssessment(text = assessmentAnswer) {
-    if (!text.trim()) return;
-    if (!aiConsent) { setConsentPrompt(true); return; }
-    const next = [...messages, { role: "user" as const, content: text.trim() }]; setAssessmentAnswer(""); setLoading(true);
-    try { const response = await fetch("/api/ai/assessment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) }); const data = await response.json(); setAssessment({ question: data.question || "Что ты замечаешь в своём отношении к ставкам?", signals: data.signals || [], score: data.score || 0 }); } finally { setLoading(false); }
-  }
-  return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК · DEEPSEEK</p><div className="page-title-row"><div><h1>Как ты сегодня?</h1><p>Без оценок. Просто честный разговор.</p></div><div className="bot-face">✦</div></div>
-    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /> Ludo · твой помощник <span className="online">онлайн</span></div>{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot">Печатает…</div>}<div className="quick-actions"><button onClick={() => send("Мне тревожно")}>Мне тревожно</button><button onClick={() => send("Всё хорошо")}>Всё хорошо</button></div><div className="chat-input"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Напиши, что чувствуешь…" /><button onClick={() => send()} aria-label="Отправить">→</button></div><button className="assessment-button" onClick={() => setAssessment({ question: "За последние 12 месяцев как часто ты ставил больше, чем мог себе позволить потерять?", signals: [], score: 0 })}>Мягко проверить состояние · 5 вопросов <span>→</span></button></div>
-    {assessment && <div className="assessment-card"><div className="assessment-top"><span className="eyebrow">БЕРЕЖНЫЙ СКРИНИНГ</span><span>{assessment.score}/3</span></div><h3>{assessment.question}</h3><p>Это не диагноз. Ответ останется частью твоего личного диалога.</p><div className="chat-input"><input value={assessmentAnswer} onChange={(event) => setAssessmentAnswer(event.target.value)} onKeyDown={(event) => event.key === "Enter" && runAssessment()} placeholder="Напиши своим словами…" /><button onClick={() => runAssessment()} aria-label="Ответить">→</button></div>{assessment.signals.length > 0 && <div className="signal-row">Замечены темы: {assessment.signals.join(" · ")}</div>}</div>}
-    {consentPrompt && <div className="consent-card"><span className="setting-icon purple">⌁</span><div><strong>Подключить AI-помощника?</strong><p>Текст диалога будет передан DeepSeek для ответа и анализа. Можно отказаться в любой момент.</p></div><button onClick={() => { setAiConsent(true); setConsentPrompt(false); }}>Разрешить</button></div>}
-    <button className="help-link" onClick={onHelp}>Мне нужна срочная помощь</button><div className="chat-disclaimer">Диалог помогает заметить изменения в состоянии. Это не медицинская диагностика.</div>
+  return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК</p><div className="page-title-row"><div><h1>Как ты сегодня?</h1></div></div>
+    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /> Ludo · твой помощник</div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("Мне тревожно")}>Мне тревожно</button><button onClick={() => send("Всё хорошо")}>Всё хорошо</button></div>}<div className="chat-composer"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Напиши, что чувствуешь…" /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}>→</button></div></div>
+    <div className="chat-disclaimer">Диалог помогает заметить изменения в состоянии. Это не медицинская диагностика.</div>
   </section>;
 }
 
@@ -85,32 +89,67 @@ function Circle({ user }: { user: User | null }) {
   async function load() { const data = await fetch("/api/community").then((response) => response.json()); setPosts(data.posts ?? []); }
   useEffect(() => { load(); }, []);
   async function publish(event: FormEvent) { event.preventDefault(); if (!text.trim()) return; const response = await fetch("/api/community", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); const data = await response.json(); if (!response.ok) { setError(data.error); return; } setText(""); setError(""); load(); }
-  async function like(id: string) { const response = await fetch(`/api/community/${id}/like`, { method: "POST" }); if (response.ok) load(); else setError((await response.json()).error); }
+  async function like(id: string) { const response = await fetch(`/api/community/${id}/like`, { method: "POST" }); if (response.ok) { const data = await response.json(); setPosts((current) => current.map((post) => post.id === id ? { ...post, likes: data.likes, liked: data.liked } : post)); } else setError((await response.json()).error); }
   async function addComment(id: string) { const value = comment[id]?.trim(); if (!value) return; const response = await fetch(`/api/community/${id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: value }) }); if (!response.ok) setError((await response.json()).error); else { setComment({ ...comment, [id]: "" }); load(); } }
   return <section className="page-section"><p className="eyebrow">АНОНИМНОЕ СООБЩЕСТВО</p><div className="page-title-row"><div><h1>Твой круг</h1><p>Люди, которые понимают без лишних слов.</p></div><span className="circle-count">1 284<br /><small>участника</small></span></div>
     {user ? <form className="composer" onSubmit={publish}><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Поделись тем, что помогает тебе…" /><div><span>{error}</span><button className="primary" type="submit">Опубликовать</button></div></form> : <div className="login-hint">Войди, чтобы публиковать, ставить лайки и отвечать.</div>}
-    {posts.map((post, index) => <article className={`post-card ${index % 2 ? "soft" : ""}`} key={post.id}><div className="post-top"><div className="post-avatar">{post.authorName.slice(0, 1)}</div><div><strong>{post.authorName}</strong><p>анонимная публикация</p></div><span>•••</span></div><p className="post-text">{post.text}</p><div className="post-actions"><button onClick={() => like(post.id)}>♡ {post.likes}</button><span>◌ {post.comments.length}</span></div>{post.comments.map((item) => <div className="comment" key={item.id}><strong>{item.authorName}</strong><span>{item.text}</span></div>)}{user && <div className="comment-input"><input value={comment[post.id] ?? ""} onChange={(event) => setComment({ ...comment, [post.id]: event.target.value })} placeholder="Написать комментарий…" onKeyDown={(event) => event.key === "Enter" && addComment(post.id)} /><button onClick={() => addComment(post.id)}>→</button></div>}</article>)}
+    {posts.map((post, index) => <article className={`post-card ${index % 2 ? "soft" : ""}`} key={post.id}><div className="post-top"><div className="post-avatar">A</div></div><p className="post-text">{post.text}</p><div className="post-actions"><button className={post.liked ? "liked" : ""} onClick={() => like(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button></div>{post.comments.map((item) => <div className="comment" key={item.id}><span>{item.text}</span></div>)}{user && <div className="comment-input"><input value={comment[post.id] ?? ""} onChange={(event) => setComment({ ...comment, [post.id]: event.target.value })} placeholder="Написать комментарий…" onKeyDown={(event) => event.key === "Enter" && addComment(post.id)} /><button onClick={() => addComment(post.id)}>→</button></div>}</article>)}
   </section>;
 }
 
 function Monitor() {
-  const [data, setData] = useState<{ active: boolean; mode: string; monitored: { name: string; type: string; status: string; risk: string }[]; events: { app: string; action: string; result: string; time: string }[] } | null>(null);
-  const [timeline, setTimeline] = useState<{ label: string; detail: string; status: string; delay: string }[] | null>(null);
-  useEffect(() => { fetch("/api/monitor").then((response) => response.json()).then(setData); }, []);
-  async function escalate() { const response = await fetch("/api/monitor/escalate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ event: "Попытка открыть Olimpbet" }) }); const result = await response.json(); setTimeline(result.timeline); }
-  return <section className="page-section"><p className="eyebrow">ДЕМО МОНИТОРИНГА</p><div className="page-title-row"><div><h1>Мониторинг БК</h1><p>Приложения и сайты под защитой.</p></div><span className="monitor-pulse">●</span></div><div className="monitor-banner"><span className="live-dot" /><div><strong>{data?.active ? "Мониторинг активен" : "Загрузка…"}</strong><p>UsageStats + DNS-фильтр · demo</p></div></div><div className="monitor-list">{data?.monitored.map((item) => <div className="monitor-item" key={item.name}><div className={`setting-icon ${item.risk === "high" ? "pink" : "orange"}`}>{item.type === "Веб-сайт" ? "⌁" : "▣"}</div><div><strong>{item.name}</strong><p>{item.type} · {item.status.toLowerCase()}</p></div><span className="monitor-check">✓</span></div>)}</div><p className="eyebrow event-label">ПОСЛЕДНИЕ СОБЫТИЯ</p>{data?.events.map((event) => <div className="event-row" key={`${event.app}-${event.time}`}><span className="event-time">{event.time}</span><div><strong>{event.app}</strong><p>{event.action} · {event.result}</p></div></div>)}<button className="primary full escalation-button" onClick={escalate}>Симулировать событие и эскалацию <span>→</span></button>{timeline && <div className="timeline">{timeline.map((item) => <div className={`timeline-item ${item.status}`} key={item.label}><span className="timeline-dot" /><div><strong>{item.label}</strong><p>{item.detail}</p></div><time>{item.delay}</time></div>)}</div>}<p className="privacy-note">В этой web-версии данные смоделированы. На Android здесь подключаются UsageStatsManager и VPNService.</p></section>;
+  const [data, setData] = useState<MonitorData | null>(null);
+  const [error, setError] = useState("");
+  async function load() {
+    const response = await fetch("/api/monitor");
+    if (response.ok) setData(await response.json());
+  }
+  useEffect(() => { load(); }, []);
+  async function simulateBlockedAttempt(app: string) {
+    setError("");
+    const response = await fetch("/api/monitor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ app }) });
+    if (!response.ok) { setError((await response.json()).error ?? "Не удалось записать событие"); return; }
+    await load();
+  }
+  return <section className="page-section"><p className="eyebrow">МОНИТОРИНГ</p><div className="page-title-row"><div><h1>Мониторинг БК</h1><p>Приложения и сайты под защитой.</p></div><span className="monitor-pulse">●</span></div><div className="monitor-banner"><span className="live-dot" /><div><strong>{data?.active ? "Мониторинг активен" : "Загрузка…"}</strong><p>Событие блокировки сразу сохраняется</p></div></div><div className="monitor-list">{data?.monitored.map((item) => <div className="monitor-item" key={item.name}><div className={`setting-icon ${item.risk === "high" ? "pink" : "orange"}`}>{item.type === "Веб-сайт" ? "⌁" : "▣"}</div><div><strong>{item.name}</strong><p>{item.type} · {item.status.toLowerCase()}</p></div><button className="monitor-trigger" onClick={() => simulateBlockedAttempt(item.name)}>Проверить</button></div>)}</div><p className="eyebrow event-label">ПОСЛЕДНИЕ СОБЫТИЯ</p>{error && <p className="form-error">{error}</p>}{data?.events.length ? data.events.map((event) => <div className="event-row" key={event.id}><span className="event-time">{event.time}</span><div><strong>{event.app}</strong><p>{event.action} · {event.result}</p></div></div>) : <p className="privacy-note">Заблокированных попыток пока нет.</p>}<p className="privacy-note">Кнопка «Проверить» имитирует событие Android-мониторинга для тестирования streak.</p></section>;
 }
 
-function Safety({ onHelp, onMonitor }: { onHelp: () => void; onMonitor: () => void }) {
+function Safety({ onMonitor }: { onMonitor: () => void }) {
+  const [monitoringEnabled, setMonitoringEnabled] = useState(true);
+  const [siteFilterEnabled, setSiteFilterEnabled] = useState(true);
+  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(true);
+  const [contacts, setContacts] = useState<EmergencyContact[]>([]);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactError, setContactError] = useState("");
+  function setSiteFilter(value: boolean) {
+    setSiteFilterEnabled(value);
+    if (typeof window !== "undefined") window.LudoGuardNative?.setSiteMonitoringEnabled?.(value);
+  }
+  async function loadContacts() {
+    const response = await fetch("/api/emergency-contacts");
+    if (response.ok) setContacts((await response.json()).contacts ?? []);
+  }
+  useEffect(() => { loadContacts(); }, []);
+  async function addContact(event: FormEvent) {
+    event.preventDefault();
+    setContactError("");
+    const response = await fetch("/api/emergency-contacts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: contactName, phone: contactPhone }) });
+    const data = await response.json();
+    if (!response.ok) { setContactError(data.error ?? "Не удалось добавить контакт."); return; }
+    setContacts((current) => [...current, data.contact]);
+    setContactName(""); setContactPhone(""); setShowContactForm(false);
+  }
+  async function removeContact(id: string) {
+    const response = await fetch("/api/emergency-contacts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (response.ok) setContacts((current) => current.filter((contact) => contact.id !== id));
+  }
   return <section className="page-section"><p className="eyebrow">НАСТРОЙКИ БЕЗОПАСНОСТИ</p><h1>Защита</h1><p className="lead">Ты выбираешь, какая поддержка тебе нужна.</p>
-    <div className="settings-list"><div className="setting"><div className="setting-icon green">✓</div><div><strong>Мониторинг приложений</strong><p>Букмекерские сайты и приложения</p></div><span className="toggle on" /></div><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>DNS-защита включена</p></div><span className="toggle on" /></div><div className="setting"><div className="setting-icon orange">♧</div><div><strong>Экстренный контакт</strong><p>Мама · +7 777 123 45 67</p></div><span className="chevron">›</span></div><div className="setting"><div className="setting-icon pink">!</div><div><strong>Сигнал при удалении</strong><p>Уведомить экстренный контакт</p></div><span className="toggle on" /></div></div>
-    <div className="demo-trigger"><div><span className="eyebrow">ДЕМО МОНИТОРИНГА</span><strong>Открыть мониторинг БК</strong><p>Приложения, сайты и события</p></div><button onClick={onMonitor}>Открыть</button></div><div className="demo-trigger secondary-trigger"><div><span className="eyebrow">ДЕМО СЦЕНАРИЯ</span><strong>Проверить тревожный сигнал</strong><p>Покажет экран поддержки</p></div><button onClick={onHelp}>Запустить</button></div>
+    <div className="settings-list"><div className="setting"><div className="setting-icon green">✓</div><div><strong>Мониторинг сайтов</strong><p>Букмекерские сайты</p></div><button className={`toggle ${monitoringEnabled ? "on" : ""}`} aria-label="Переключить мониторинг сайтов" aria-pressed={monitoringEnabled} onClick={() => setMonitoringEnabled((value) => !value)} /></div><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>{siteFilterEnabled ? "DNS-защита включена" : "DNS-защита выключена"}</p></div><button className={`toggle ${siteFilterEnabled ? "on" : ""}`} aria-label="Переключить фильтр сайтов" aria-pressed={siteFilterEnabled} onClick={() => setSiteFilter(!siteFilterEnabled)} /></div>{contacts.map((contact) => <div className="setting" key={contact.id}><div className="setting-icon orange">♧</div><div><strong>{contact.name}</strong><p>{contact.phone}</p></div><button className="contact-remove" onClick={() => removeContact(contact.id)} aria-label={`Удалить контакт ${contact.name}`}>×</button></div>)}{contacts.length < 3 && <button className="contact-add" onClick={() => { setShowContactForm(true); setContactError(""); }}>+ Добавить экстренный контакт <span>{contacts.length}/3</span></button>}{showContactForm && <form className="contact-form" onSubmit={addContact}><input required value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Имя контакта" /><input required value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Номер телефона" type="tel" />{contactError && <p className="form-error">{contactError}</p>}<div><button type="button" className="contact-cancel" onClick={() => setShowContactForm(false)}>Отмена</button><button className="primary" type="submit">Сохранить</button></div></form>}<div className="setting"><div className="setting-icon pink">!</div><div><strong>Сигнал при удалении</strong><p>{deletionSignalEnabled ? "Уведомить экстренный контакт" : "Уведомления выключены"}</p></div><button className={`toggle ${deletionSignalEnabled ? "on" : ""}`} aria-label="Переключить сигнал при удалении" aria-pressed={deletionSignalEnabled} onClick={() => setDeletionSignalEnabled((value) => !value)} /></div></div>
+    <div className="demo-trigger"><div><span className="eyebrow">ДЕМО МОНИТОРИНГА</span><strong>Открыть мониторинг БК</strong><p>Приложения, сайты и события</p></div><button onClick={onMonitor}>Открыть</button></div>
     <p className="privacy-note">Экстренный контакт получает уведомления только при срабатывании выбранного тобой сценария.</p>
   </section>;
-}
-
-function Intervention({ close }: { close: () => void }) {
-  return <div className="intervention-backdrop"><div className="intervention"><button className="close" onClick={close}>×</button><div className="intervention-symbol">✦</div><p className="eyebrow">LUDOGUARD · ПАУЗА</p><h2>Ты в порядке?</h2><p className="intervention-copy">Мы заметили, что ты открыл букмекерское приложение. Давай сделаем паузу на 30 секунд.</p><div className="timer">00:24</div><div className="intervention-actions"><button className="primary full" onClick={close}>Да, я в порядке <span>✓</span></button><button className="outline full" onClick={close}>Мне нужна помощь</button></div><p className="contact-hint">При отсутствии ответа через 2 минуты мы напишем маме.</p></div></div>;
 }
 
 function Auth({ onAuth }: { onAuth: (user: User) => void }) {
@@ -122,9 +161,8 @@ function Auth({ onAuth }: { onAuth: (user: User) => void }) {
 export default function Home() {
   const [tab, setTab] = useState<Tab>("home");
   const [user, setUser] = useState<User | null>(null);
-  const [intervention, setIntervention] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   useEffect(() => { fetch("/api/auth/me").then((response) => response.json()).then((data) => { setUser(data.user); setAuthChecked(true); }).catch(() => setAuthChecked(true)); }, []);
   if (!authChecked) return <main className="app-shell"><div className="phone-frame auth-loading">Загрузка LudoGuard…</div></main>;
-  return <main className="app-shell">{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header onHelp={() => setIntervention(true)} /><div className="scroll-area">{tab === "home" && <Dashboard onHelp={() => setIntervention(true)} onTab={setTab} />}{tab === "chat" && <Chat onHelp={() => setIntervention(true)} />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety onHelp={() => setIntervention(true)} onMonitor={() => setTab("monitor")} />}{tab === "monitor" && <Monitor />}</div><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div>{intervention && <Intervention close={() => setIntervention(false)} />}</main>;
+  return <main className="app-shell">{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety onMonitor={() => setTab("monitor")} />}{tab === "monitor" && <Monitor />}</div><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
 }
