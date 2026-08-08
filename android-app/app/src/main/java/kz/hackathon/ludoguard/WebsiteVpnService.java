@@ -18,18 +18,22 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class WebsiteVpnService extends VpnService {
+    public static final String ACTION_STOP = "kz.hackathon.ludoguard.STOP_WEBSITE_MONITORING";
     private static final int NOTIFICATION_ID = 9;
     private static final String CHANNEL_ID = "website-monitor";
     private ParcelFileDescriptor vpn;
     private Thread worker;
     private volatile boolean running;
     private final Map<String, Long> lastAlerts = new HashMap<>();
-    private static final String SERVER = "https://gamblaregit.vercel.app/api/monitor/site-event";
 
     @Override public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && ACTION_STOP.equals(intent.getAction())) {
+            stopMonitoring();
+            return START_NOT_STICKY;
+        }
         startForeground(NOTIFICATION_ID, buildNotification());
         if (vpn == null) startVpn();
-        return START_STICKY;
+        return START_NOT_STICKY;
     }
 
     private Notification buildNotification() {
@@ -90,7 +94,15 @@ public class WebsiteVpnService extends VpnService {
     private int checksum(byte[] data, int offset, int length) { long sum = 0; for (int i = offset; i < offset + length; i += 2) sum += ((data[i] & 255) << 8) | (i + 1 < offset + length ? data[i + 1] & 255 : 0); while ((sum >> 16) != 0) sum = (sum & 65535) + (sum >> 16); return (int) (~sum & 65535); }
     private int u16(byte[] data, int offset) { return ((data[offset] & 255) << 8) | (data[offset + 1] & 255); }
     private String readName(byte[] data, int offset, int end) { StringBuilder result = new StringBuilder(); int position = offset; while (position < end) { int size = data[position++] & 255; if (size == 0) break; if (size > 63 || position + size > end) return ""; if (result.length() > 0) result.append('.'); result.append(new String(data, position, size)); position += size; } return result.toString(); }
-    private void alertOnce(String domain) { long now = System.currentTimeMillis(); Long last = lastAlerts.get(domain); if (last != null && now - last < 60_000) return; lastAlerts.put(domain, now); WebsiteAlert.notify(this, domain); new Thread(() -> { try { java.net.HttpURLConnection connection = (java.net.HttpURLConnection) new java.net.URL(SERVER).openConnection(); connection.setRequestMethod("POST"); connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json"); String body = "{\"domain\":\"" + domain.replace("\"", "") + "\",\"deviceId\":\"android-demo\"}"; connection.getOutputStream().write(body.getBytes()); connection.getResponseCode(); connection.disconnect(); } catch (Exception ignored) {} }).start(); }
-    @Override public void onDestroy() { running = false; try { if (vpn != null) vpn.close(); } catch (Exception ignored) {} super.onDestroy(); }
+    private void alertOnce(String domain) { long now = System.currentTimeMillis(); Long last = lastAlerts.get(domain); if (last != null && now - last < 60_000) return; lastAlerts.put(domain, now); WebsiteAlert.notify(this, domain); }
+    private void stopMonitoring() {
+        running = false;
+        try { if (vpn != null) vpn.close(); } catch (Exception ignored) {}
+        vpn = null;
+        stopForeground(true);
+        stopSelf();
+    }
+    @Override public void onRevoke() { stopMonitoring(); super.onRevoke(); }
+    @Override public void onDestroy() { stopMonitoring(); super.onDestroy(); }
     @Override public android.os.IBinder onBind(Intent intent) { return super.onBind(intent); }
 }

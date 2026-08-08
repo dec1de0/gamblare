@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 declare global {
-  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void } }
+  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; enableUninstallGuard?: () => void } }
 }
 
 type Tab = "home" | "chat" | "circle" | "safety" | "monitor";
@@ -117,12 +117,13 @@ function Monitor() {
 function Safety({ onMonitor }: { onMonitor: () => void }) {
   const [monitoringEnabled, setMonitoringEnabled] = useState(false);
   const [siteFilterEnabled, setSiteFilterEnabled] = useState(false);
-  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(false);
+  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(true);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactError, setContactError] = useState("");
+  useEffect(() => { window.LudoGuardNative?.enableUninstallGuard?.(); }, []);
   function setSiteFilter(value: boolean) {
     setSiteFilterEnabled(value);
     if (typeof window !== "undefined") window.LudoGuardNative?.setSiteMonitoringEnabled?.(value);

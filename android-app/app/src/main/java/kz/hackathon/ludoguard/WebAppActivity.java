@@ -8,12 +8,11 @@ import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.widget.FrameLayout;
 
 public class WebAppActivity extends Activity {
     private static final String WEB_URL = "https://gamblaregit.vercel.app/";
-    @Override public void onCreate(Bundle state) { super.onCreate(state); if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 20); LinearLayout root = new LinearLayout(this); root.setOrientation(LinearLayout.VERTICAL); root.setBackgroundColor(Color.rgb(248, 251, 246)); TextView bar = new TextView(this); bar.setText("✦  LUDOGUARD  ·  web-приложение"); bar.setTextSize(12); bar.setTextColor(Color.rgb(24, 35, 31)); bar.setPadding(20, 18, 20, 18); root.addView(bar); WebView web = new WebView(this); web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(true); web.getSettings().setDatabaseEnabled(true); web.addJavascriptInterface(new NativeBridge(), "LudoGuardNative"); CookieManager.getInstance().setAcceptCookie(true); web.setWebViewClient(new WebViewClient() { @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { String url = request.getUrl().toString(); if (WebsiteBlocklist.contains(url)) { redirectToApp(view, url); return true; } return false; } @Override public void onPageFinished(WebView view, String url) { if (WebsiteBlocklist.contains(url)) redirectToApp(view, url); } }); root.addView(web, new LinearLayout.LayoutParams(-1, 0, 1)); web.loadUrl(WEB_URL); setContentView(root); }
+    @Override public void onCreate(Bundle state) { super.onCreate(state); if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 20); FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.rgb(248, 251, 246)); WebView web = new WebView(this); web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(true); web.getSettings().setDatabaseEnabled(true); web.addJavascriptInterface(new NativeBridge(), "LudoGuardNative"); CookieManager.getInstance().setAcceptCookie(true); web.setWebViewClient(new WebViewClient() { @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { String url = request.getUrl().toString(); if (WebsiteBlocklist.contains(url)) { redirectToApp(view, url); return true; } return false; } @Override public void onPageFinished(WebView view, String url) { if (WebsiteBlocklist.contains(url)) redirectToApp(view, url); } }); root.addView(web, new FrameLayout.LayoutParams(-1, -1)); web.loadUrl(WEB_URL); setContentView(root); }
 
     private void redirectToApp(WebView view, String url) { WebsiteAlert.notify(this, url); view.stopLoading(); view.postDelayed(() -> view.loadUrl(WEB_URL), 120); }
 
@@ -24,9 +23,27 @@ public class WebAppActivity extends Activity {
         if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service);
     }
 
+    private void stopWebsiteVpn() {
+        android.content.Intent stop = new android.content.Intent(this, WebsiteVpnService.class).setAction(WebsiteVpnService.ACTION_STOP);
+        startService(stop);
+        stopService(new android.content.Intent(this, WebsiteVpnService.class));
+    }
+
+    private void enableUninstallGuard() {
+        android.app.admin.DevicePolicyManager policy = (android.app.admin.DevicePolicyManager) getSystemService(DEVICE_POLICY_SERVICE);
+        android.content.ComponentName receiver = new android.content.ComponentName(this, AppDeviceAdminReceiver.class);
+        if (policy != null && !policy.isAdminActive(receiver)) {
+            android.content.Intent intent = new android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, receiver);
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Защита фиксирует попытку отключить LudoGuard и запускает сигнал безопасности.");
+            startActivity(intent);
+        }
+    }
+
     private final class NativeBridge {
         @JavascriptInterface public void setSiteMonitoringEnabled(boolean enabled) {
-            runOnUiThread(() -> { if (enabled) startWebsiteVpn(); else stopService(new android.content.Intent(WebAppActivity.this, WebsiteVpnService.class)); });
+            runOnUiThread(() -> { if (enabled) startWebsiteVpn(); else stopWebsiteVpn(); });
         }
+        @JavascriptInterface public void enableUninstallGuard() { runOnUiThread(WebAppActivity.this::enableUninstallGuard); }
     }
 }
