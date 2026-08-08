@@ -17,7 +17,7 @@ public final class WebsiteAlert {
     public static void notify(Context context, String url) {
         resetStreak(context);
         if (!shouldAlert(context, "site", SITE_COOLDOWN_MS)) return;
-        showNotification(context, "LudoGuard заметил рискованный сайт", "Открыт домен из списка защиты. Сделай паузу.");
+        showNotification(context, "Gamblare заметил рискованный сайт", "Открыт домен из списка защиты. Сделай паузу.");
         sendSms(context, "site", "Открыт рискованный сайт: " + url);
     }
 
@@ -25,7 +25,7 @@ public final class WebsiteAlert {
         String category = categoryFor(event);
         long cooldown = "ai".equals(category) ? AI_COOLDOWN_MS : SECURITY_COOLDOWN_MS;
         if (!shouldAlert(context, category, cooldown)) return;
-        showNotification(context, "LudoGuard: сигнал безопасности", event);
+        showNotification(context, "Gamblare: сигнал безопасности", event);
         sendSms(context, category, event);
     }
 
@@ -70,7 +70,7 @@ public final class WebsiteAlert {
         NotificationManager manager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         if (manager == null) return;
         if (Build.VERSION.SDK_INT >= 26) {
-            manager.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Сигналы LudoGuard", NotificationManager.IMPORTANCE_HIGH));
+            manager.createNotificationChannel(new NotificationChannel(CHANNEL_ID, "Сигналы Gamblare", NotificationManager.IMPORTANCE_HIGH));
         }
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26
                 ? new Notification.Builder(context, CHANNEL_ID)
@@ -86,7 +86,7 @@ public final class WebsiteAlert {
             if (!context.getPackageManager().hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEPHONY_MESSAGING)) return;
             String phone = context.getSharedPreferences("ludoguard_prefs", Context.MODE_PRIVATE).getString("emergency_phone", "");
             if (phone == null || !phone.matches("\\+\\d{10,15}")) return;
-            String text = "LudoGuard SOS: " + event + ". Проверьте, всё ли в порядке.";
+            String text = "Gamblare SOS: " + event + ". Проверьте, всё ли в порядке.";
             android.telephony.SmsManager manager = android.telephony.SmsManager.getDefault();
             java.util.ArrayList<String> parts = manager.divideMessage(text);
             manager.sendMultipartTextMessage(phone, null, parts, null, null);

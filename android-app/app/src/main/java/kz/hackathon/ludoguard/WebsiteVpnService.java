@@ -49,7 +49,7 @@ public class WebsiteVpnService extends VpnService {
         if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
         PendingIntent pending = PendingIntent.getActivity(this, 0, open, flags);
         Notification.Builder builder = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL_ID) : new Notification.Builder(this);
-        return builder.setContentTitle("LudoGuard: мониторинг активен")
+        return builder.setContentTitle("Gamblare: мониторинг активен")
                 .setContentText("Проверяем DNS-домены и отправляем тревожный сигнал при совпадении")
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setOngoing(true)
@@ -60,7 +60,7 @@ public class WebsiteVpnService extends VpnService {
         try {
             // Android sends system DNS queries to this virtual resolver. The service
             // can then inspect every regular DNS query before forwarding it upstream.
-            vpn = new Builder().setSession("LudoGuard website protection").addAddress("10.0.0.2", 32).addRoute("10.0.0.1", 32).addDnsServer("10.0.0.1").establish();
+            vpn = new Builder().setSession("Gamblare website protection").addAddress("10.0.0.2", 32).addRoute("10.0.0.1", 32).addDnsServer("10.0.0.1").establish();
             running = true;
             getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_enabled", true).apply();
             worker = new Thread(this::readPackets, "ludoguard-dns"); worker.start();
@@ -107,7 +107,7 @@ public class WebsiteVpnService extends VpnService {
         stopSelf();
     }
     public static boolean isMonitoringEnabled(android.content.Context context) { return context.getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).getBoolean("site_filter_enabled", false); }
-    @Override public void onRevoke() { if (!voluntaryStop) { WebsiteAlert.notifySecurityEvent(this, "Пользователь пытается отключить VPN-защиту LudoGuard."); getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", false).apply(); } stopMonitoring(); super.onRevoke(); }
+    @Override public void onRevoke() { if (!voluntaryStop) { WebsiteAlert.notifySecurityEvent(this, "Пользователь пытается отключить VPN-защиту Gamblare."); getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", false).apply(); } stopMonitoring(); super.onRevoke(); }
     @Override public void onDestroy() { stopMonitoring(); super.onDestroy(); }
     @Override public android.os.IBinder onBind(Intent intent) { return super.onBind(intent); }
 }

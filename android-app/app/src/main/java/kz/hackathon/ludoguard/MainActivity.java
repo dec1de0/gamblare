@@ -33,15 +33,15 @@ public class MainActivity extends Activity {
     private void mount(LinearLayout page) { root = page; ScrollView scroll = new ScrollView(this); scroll.addView(root); setContentView(scroll); }
 
     private void showConsent() {
-        LinearLayout page = page(); TextView logo = text("✦  LUDOGUARD", 20); logo.setTextColor(dark); page.addView(logo);
-        page.addView(text("Твоя поддержка рядом", 30)); page.addView(text("LudoGuard помогает заметить рискованный момент и сделать паузу. Сайт-мониторинг работает через локальный VPN: приложение проверяет только DNS-домены, HTTPS-содержимое не читается.", 15));
+        LinearLayout page = page(); TextView logo = text("GAMBLARE", 20); logo.setTextColor(dark); page.addView(logo);
+        page.addView(text("Твоя поддержка рядом", 30)); page.addView(text("Gamblare помогает заметить рискованный момент и сделать паузу. Сайт-мониторинг работает через локальный VPN: приложение проверяет только DNS-домены, HTTPS-содержимое не читается.", 15));
         EditText contact = new EditText(this); contact.setHint("Telegram ID экстренного контакта (демо)"); page.addView(contact);
         Button agree = button("Согласен и продолжить"); agree.setOnClickListener(v -> { prefs.edit().putBoolean("consent", true).putString("contact", contact.getText().toString()).apply(); showHome(); }); page.addView(agree);
         TextView note = text("Можно изменить или отозвать согласие в настройках телефона. Уведомления контакту пока работают в demo-режиме.", 11); note.setTextColor(Color.GRAY); page.addView(note); mount(page);
     }
 
     private void showHome() {
-        LinearLayout page = page(); TextView header = text("✦  LUDOGUARD", 14); header.setTextColor(dark); page.addView(header);
+        LinearLayout page = page(); TextView header = text("GAMBLARE", 14); header.setTextColor(dark); page.addView(header);
         TextView title = text("Привет, Арман", 28); page.addView(title); page.addView(text("ЗАЩИТА АКТИВНА", 11));
         TextView status = text("✓   Сегодня ты держишься\n\nМониторинг сайтов запускается вручную и работает в demo-режиме", 18); status.setTextColor(Color.WHITE); status.setBackgroundColor(dark); status.setPadding(24, 24, 24, 24); page.addView(status);
         Button usage = button("Открыть настройки Usage Access"); usage.setOnClickListener(v -> startActivity(new Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))); page.addView(usage);

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./brand-overrides.css";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,11 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LudoGuard — поддержка рядом",
+  title: "Gamblare — поддержка рядом",
   description: "Мобильный прототип приложения для осознанного отношения к азартным играм.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/gamblare-logo.png",
+    shortcut: "/gamblare-logo.png",
   },
 };
 

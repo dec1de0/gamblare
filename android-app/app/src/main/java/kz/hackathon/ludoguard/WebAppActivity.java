@@ -13,14 +13,65 @@ import android.widget.FrameLayout;
 
 public class WebAppActivity extends Activity {
     private static final String WEB_URL = "https://gamblaregit.vercel.app/";
+    private static final int NOTIFICATION_PERMISSION_REQUEST = 20;
+    private static final int SMS_PERMISSION_REQUEST = 21;
+    private static final int VPN_PERMISSION_REQUEST = 41;
     private boolean resumedOnce;
-    @Override public void onCreate(Bundle state) { super.onCreate(state); if (android.os.Build.VERSION.SDK_INT >= 33) { if (checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, 20); else getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("notification_permission_granted", true).apply(); } FrameLayout root = new FrameLayout(this); root.setBackgroundColor(Color.BLACK); WebView web = new WebView(this); web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(true); web.getSettings().setDatabaseEnabled(true); web.addJavascriptInterface(new NativeBridge(), "LudoGuardNative"); CookieManager.getInstance().setAcceptCookie(true); web.setWebViewClient(new WebViewClient() { @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { String url = request.getUrl().toString(); if (url.startsWith("tel:")) { startActivity(new Intent(Intent.ACTION_DIAL, android.net.Uri.parse(url))); return true; } if (WebsiteBlocklist.contains(url)) { redirectToApp(view, url); return true; } return false; } @Override public void onPageFinished(WebView view, String url) { if (WebsiteBlocklist.contains(url)) redirectToApp(view, url); } }); root.addView(web, new FrameLayout.LayoutParams(-1, -1)); web.loadUrl(WEB_URL); setContentView(root); }
+    @Override public void onCreate(Bundle state) {
+        super.onCreate(state);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(Color.BLACK);
+        WebView web = new WebView(this);
+        web.getSettings().setJavaScriptEnabled(true);
+        web.getSettings().setDomStorageEnabled(true);
+        web.getSettings().setDatabaseEnabled(true);
+        web.addJavascriptInterface(new NativeBridge(), "GamblareNative");
+        CookieManager.getInstance().setAcceptCookie(true);
+        web.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String url = request.getUrl().toString();
+                if (url.startsWith("tel:")) { startActivity(new Intent(Intent.ACTION_DIAL, android.net.Uri.parse(url))); return true; }
+                if (WebsiteBlocklist.contains(url)) { redirectToApp(view, url); return true; }
+                return false;
+            }
+            @Override public void onPageFinished(WebView view, String url) { if (WebsiteBlocklist.contains(url)) redirectToApp(view, url); }
+        });
+        root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+        web.loadUrl(WEB_URL);
+        setContentView(root);
+        root.post(this::requestInitialPermissions);
+    }
+
+    private void requestInitialPermissions() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"}, NOTIFICATION_PERMISSION_REQUEST);
+            return;
+        }
+        getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("notification_permission_granted", true).apply();
+        requestSmsPermission();
+    }
+
+    private void requestSmsPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission("android.permission.SEND_SMS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{"android.permission.SEND_SMS"}, SMS_PERMISSION_REQUEST);
+            return;
+        }
+        getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("sms_permission_granted", true).apply();
+        requestUninstallGuardOnce();
+    }
+
+    private void requestUninstallGuardOnce() {
+        android.content.SharedPreferences prefs = getSharedPreferences("ludoguard_prefs", MODE_PRIVATE);
+        if (prefs.getBoolean("device_admin_prompted", false)) return;
+        prefs.edit().putBoolean("device_admin_prompted", true).apply();
+        enableUninstallGuard();
+    }
 
     private void redirectToApp(WebView view, String url) { WebsiteAlert.notify(this, url); view.stopLoading(); view.postDelayed(() -> view.loadUrl(WEB_URL), 120); }
 
     private void startWebsiteVpn() {
         android.content.Intent prepare = WebsiteVpnService.prepare(this);
-        if (prepare != null) { startActivityForResult(prepare, 41); return; }
+        if (prepare != null) { startActivityForResult(prepare, VPN_PERMISSION_REQUEST); return; }
         android.content.Intent service = new android.content.Intent(this, WebsiteVpnService.class);
         if (android.os.Build.VERSION.SDK_INT >= 26) startForegroundService(service); else startService(service);
     }
@@ -37,7 +88,7 @@ public class WebAppActivity extends Activity {
         if (policy != null && !policy.isAdminActive(receiver)) {
             android.content.Intent intent = new android.content.Intent(android.app.admin.DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN);
             intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_DEVICE_ADMIN, receiver);
-            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Защита фиксирует попытку отключить LudoGuard и запускает сигнал безопасности.");
+            intent.putExtra(android.app.admin.DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Защита фиксирует попытку отключить Gamblare и запускает сигнал безопасности.");
             startActivity(intent);
         }
     }
@@ -58,16 +109,25 @@ public class WebAppActivity extends Activity {
         android.content.SharedPreferences prefs = getSharedPreferences("ludoguard_prefs", MODE_PRIVATE);
         long lastChange = prefs.getLong("site_filter_changed_at", 0);
         boolean monitoringSettled = System.currentTimeMillis() - lastChange > 15_000L;
-        if (prefs.getBoolean("notification_permission_granted", false) && android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил разрешение на уведомления LudoGuard.");
-        if (monitoringSettled && prefs.getBoolean("site_filter_expected", false) && !WebsiteVpnService.isMonitoringEnabled(this)) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил VPN-защиту LudoGuard.");
+        if (prefs.getBoolean("notification_permission_granted", false) && android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил разрешение на уведомления Gamblare.");
+        if (monitoringSettled && prefs.getBoolean("site_filter_expected", false) && !WebsiteVpnService.isMonitoringEnabled(this)) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил VPN-защиту Gamblare.");
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
         super.onRequestPermissionsResult(requestCode, permissions, results);
         if (results.length > 0 && results[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            if (requestCode == 20) getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("notification_permission_granted", true).apply();
-            if (requestCode == 21) getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("sms_permission_granted", true).apply();
+            if (requestCode == NOTIFICATION_PERMISSION_REQUEST) getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("notification_permission_granted", true).apply();
+            if (requestCode == SMS_PERMISSION_REQUEST) getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("sms_permission_granted", true).apply();
         }
+        if (requestCode == NOTIFICATION_PERMISSION_REQUEST) requestSmsPermission();
+        if (requestCode == SMS_PERMISSION_REQUEST) requestUninstallGuardOnce();
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != VPN_PERMISSION_REQUEST) return;
+        if (resultCode == RESULT_OK) startWebsiteVpn();
+        else getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", false).apply();
     }
 
     private final class NativeBridge {

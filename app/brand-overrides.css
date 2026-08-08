@@ -1,0 +1,51 @@
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.auth-logo {
+  width: 35px;
+  height: 35px;
+  border-radius: 11px;
+  object-fit: cover;
+}
+
+.chat-logo {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.theme-dark,
+.theme-dark .greeting h1,
+.theme-dark .greeting .eyebrow,
+.theme-dark .section-row .eyebrow,
+.theme-dark .circle-count,
+.theme-dark .circle-count small,
+.theme-dark .post-text,
+.theme-dark .post-top strong,
+.theme-dark .post-top p,
+.theme-dark .post-actions,
+.theme-dark .comment,
+.theme-dark .composer textarea,
+.theme-dark .composer textarea::placeholder {
+  color: #fff;
+}
+
+.theme-dark .comment-input input {
+  background: #171717;
+  color: #fff;
+}
+
+.theme-dark .comment-input input::placeholder {
+  color: #aaa;
+}

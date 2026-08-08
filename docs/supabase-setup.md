@@ -1,4 +1,4 @@
-# Supabase для LudoGuard
+# Supabase для Gamblare
 
 1. Создай проект в [Supabase](https://supabase.com/dashboard).
 2. Открой **SQL Editor** и выполни содержимое `supabase/schema.sql` целиком.

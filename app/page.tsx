@@ -1,19 +1,25 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 declare global {
-  interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; isSiteMonitoringEnabled?: () => boolean; getCurrentStreakDays?: () => number; sendAiHighRiskAlert?: () => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
+  interface Window { GamblareNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; isSiteMonitoringEnabled?: () => boolean; getCurrentStreakDays?: () => number; sendAiHighRiskAlert?: () => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
 }
 
 type Tab = "home" | "chat" | "circle" | "safety";
 type User = { id: string; name: string; email: string };
-type Comment = { id: string; text: string; createdAt: string };
-type Post = { id: string; text: string; likes: number; likedBy: string[]; liked?: boolean; comments: Comment[]; createdAt: string };
+type Comment = { id: string; authorName?: string; text: string; createdAt: string };
+type Post = { id: string; authorName?: string; text: string; likes: number; likedBy: string[]; liked?: boolean; comments: Comment[]; createdAt: string };
 type MonitorEvent = { id: string; app: string; action: string; result: string; time: string; createdAt: string };
 type SafetySummary = { currentStreak: number; todayBlocked: boolean; todayEvents: number; lastEventAt: string | null };
 type MonitorData = { active: boolean; mode: string; monitored: { name: string; type: string; status: string; risk: string }[]; events: MonitorEvent[]; summary: SafetySummary | null };
 type EmergencyContact = { id: string; name: string; phone: string; createdAt: string };
+
+const demoPosts: Post[] = [
+  { id: "demo-pause", authorName: "Аноним 031", text: "Сегодня вместо ставки вышел пройтись на 20 минут и написал брату. Импульс прошёл — не сразу, но прошёл. Маленькая победа тоже победа.", likes: 47, likedBy: [], comments: [{ id: "demo-comment-1", authorName: "Аноним 107", text: "Красавчик. Первые 15–20 минут обычно самые тяжёлые.", createdAt: "2026-08-09T09:15:00.000Z" }, { id: "demo-comment-2", authorName: "Аноним 042", text: "Спасибо, забираю прогулку как свой план на сегодня.", createdAt: "2026-08-09T10:05:00.000Z" }], createdAt: "2026-08-09T08:40:00.000Z" },
+  { id: "demo-progress", authorName: "Аноним 218", text: "Третий месяц без ставок. Закрыл один долг и впервые за долгое время спокойно показал семье банковское приложение. Доверие возвращается медленно, но возвращается.", likes: 82, likedBy: [], comments: [{ id: "demo-comment-3", authorName: "Аноним 019", text: "Очень сильный результат. Продолжай держать темп.", createdAt: "2026-08-08T18:20:00.000Z" }], createdAt: "2026-08-08T17:30:00.000Z" },
+];
 
 const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "home", label: "Главная", icon: "⌂" },
@@ -25,7 +31,7 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
 function Header({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
   return (
     <header className="topbar">
-      <div className="brand"><span className="brand-mark">✦</span><span>LUDOGUARD</span></div>
+      <div className="brand"><img className="brand-logo" src="/gamblare-logo.png" alt="" /><span>GAMBLARE</span></div>
       <button className="theme-switch" onClick={onToggleTheme} aria-label="Переключить тему" aria-pressed={dark}>
         <span>{dark ? "☀" : "☾"}</span>
       </button>
@@ -43,9 +49,9 @@ function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
   }
   useEffect(() => {
     loadMonitor();
-    const streak = window.LudoGuardNative?.getCurrentStreakDays?.();
+    const streak = window.GamblareNative?.getCurrentStreakDays?.();
     if (typeof streak === "number") setNativeStreak(streak);
-    const protection = window.LudoGuardNative?.isSiteMonitoringEnabled?.();
+    const protection = window.GamblareNative?.isSiteMonitoringEnabled?.();
     if (typeof protection === "boolean") setNativeProtection(protection);
   }, []);
   const summary = monitor?.summary;
@@ -91,7 +97,7 @@ function Chat() {
     try {
       const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
       const data = await response.json();
-      if (data.risk === "high") window.LudoGuardNative?.sendAiHighRiskAlert?.();
+      if (data.risk === "high") window.GamblareNative?.sendAiHighRiskAlert?.();
       setRiskNotice(data.egovReminder ? "Средний риск: импульс к азарту уже заметен, но ты ещё можешь остановиться до первой ставки. Открой eGov Mobile → «Услуги» → «Туризм и спорт» → сервис ограничения участия в азартных играх и пари, затем выбери срок самоограничения." : "");
       setMessages([...next, { role: "assistant", content: data.content || data.error || "Скажи прямо: что сейчас сильнее — желание поставить или тревога?" }]);
     } catch {
@@ -99,22 +105,22 @@ function Chat() {
     } finally { setLoading(false); }
   }
   return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК</p><div className="page-title-row"><div><h1>Поговорим честно</h1><p>Без оценки. С конкретным следующим шагом.</p></div></div>
-    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /><strong>Ludo AI</strong><span className="chat-online">в диалоге</span></div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("У меня ломка, кажется буду ставить")}>Сильный импульс</button><button onClick={() => send("Я хочу азарта")}>Хочу азарта</button></div>}<div className="chat-composer"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Напиши как есть — я пойму…" rows={1} /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}><span>↑</span></button></div></div>
+    <div className="chat-card"><div className="chat-meta"><img className="chat-logo" src="/gamblare-logo.png" alt="" /><strong>Gamblare-chat</strong><span className="chat-online">в диалоге</span></div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("У меня ломка, кажется буду ставить")}>Сильный импульс</button><button onClick={() => send("Я хочу азарта")}>Хочу азарта</button></div>}<div className="chat-composer"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Напиши как есть — я пойму…" rows={1} /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}><span>↑</span></button></div></div>
     {riskNotice && <div className="egov-notice"><strong>Практический шаг</strong><p>{riskNotice}</p></div>}
     <div className="chat-disclaimer">Диалог помогает заметить изменения в состоянии. Это не медицинская диагностика.</div>
   </section>;
 }
 
 function Circle({ user }: { user: User | null }) {
-  const [posts, setPosts] = useState<Post[]>([]); const [text, setText] = useState(""); const [comment, setComment] = useState<Record<string, string>>({}); const [error, setError] = useState("");
-  async function load() { const data = await fetch("/api/community").then((response) => response.json()); setPosts(data.posts ?? []); }
+  const [posts, setPosts] = useState<Post[]>(demoPosts); const [text, setText] = useState(""); const [comment, setComment] = useState<Record<string, string>>({}); const [error, setError] = useState("");
+  async function load() { const response = await fetch("/api/community"); const data = await response.json(); if (!response.ok) { setError(data.error ?? "Не удалось обновить ленту"); return; } setPosts([...demoPosts, ...(data.posts ?? [])]); }
   useEffect(() => { load(); }, []);
-  async function publish(event: FormEvent) { event.preventDefault(); if (!text.trim()) return; const response = await fetch("/api/community", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); const data = await response.json(); if (!response.ok) { setError(data.error); return; } setText(""); setError(""); load(); }
-  async function like(id: string) { const response = await fetch(`/api/community/${id}/like`, { method: "POST" }); if (response.ok) { const data = await response.json(); setPosts((current) => current.map((post) => post.id === id ? { ...post, likes: data.likes, liked: data.liked } : post)); } else setError((await response.json()).error); }
-  async function addComment(id: string) { const value = comment[id]?.trim(); if (!value) return; const response = await fetch(`/api/community/${id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: value }) }); if (!response.ok) setError((await response.json()).error); else { setComment({ ...comment, [id]: "" }); load(); } }
+  async function publish(event: FormEvent) { event.preventDefault(); if (!text.trim()) return; const response = await fetch("/api/community", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) }); const data = await response.json(); if (!response.ok) { setError(data.error); return; } setPosts((current) => [data.post, ...current]); setText(""); setError(""); }
+  async function like(id: string) { if (id.startsWith("demo-")) { setPosts((current) => current.map((post) => post.id === id ? { ...post, likes: post.likes + (post.liked ? -1 : 1), liked: !post.liked } : post)); return; } const response = await fetch(`/api/community/${id}/like`, { method: "POST" }); if (response.ok) { const data = await response.json(); setPosts((current) => current.map((post) => post.id === id ? { ...post, likes: data.likes, liked: data.liked } : post)); } else setError((await response.json()).error); }
+  async function addComment(id: string) { const value = comment[id]?.trim(); if (!value) return; if (id.startsWith("demo-")) { setPosts((current) => current.map((post) => post.id === id ? { ...post, comments: [...post.comments, { id: `demo-comment-${Date.now()}`, text: value, createdAt: new Date().toISOString() }] } : post)); setComment({ ...comment, [id]: "" }); return; } const response = await fetch(`/api/community/${id}/comments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: value }) }); const data = await response.json(); if (!response.ok) setError(data.error); else { setPosts((current) => current.map((post) => post.id === id ? { ...post, comments: [...post.comments, data.comment] } : post)); setComment({ ...comment, [id]: "" }); } }
   return <section className="page-section"><p className="eyebrow">АНОНИМНОЕ СООБЩЕСТВО</p><div className="page-title-row"><div><h1>Твой круг</h1><p>Люди, которые понимают без лишних слов.</p></div><span className="circle-count">1 284<br /><small>участника</small></span></div>
     {user ? <form className="composer" onSubmit={publish}><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Поделись тем, что помогает тебе…" /><div><span>{error}</span><button className="primary" type="submit">Опубликовать</button></div></form> : <div className="login-hint">Войди, чтобы публиковать, ставить лайки и отвечать.</div>}
-    {posts.map((post, index) => <article className={`post-card ${index % 2 ? "soft" : ""}`} key={post.id}><div className="post-top"><div className="post-avatar">A</div></div><p className="post-text">{post.text}</p><div className="post-actions"><button className={post.liked ? "liked" : ""} onClick={() => like(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button></div>{post.comments.map((item) => <div className="comment" key={item.id}><span>{item.text}</span></div>)}{user && <div className="comment-input"><input value={comment[post.id] ?? ""} onChange={(event) => setComment({ ...comment, [post.id]: event.target.value })} placeholder="Написать комментарий…" onKeyDown={(event) => event.key === "Enter" && addComment(post.id)} /><button onClick={() => addComment(post.id)}>→</button></div>}</article>)}
+    {posts.map((post, index) => <article className={`post-card ${index % 2 ? "soft" : ""}`} key={post.id}><div className="post-top"><div className="post-avatar">A</div><div><strong>{post.authorName ?? "Участник"}</strong><p>{new Date(post.createdAt).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</p></div></div><p className="post-text">{post.text}</p><div className="post-actions"><button className={post.liked ? "liked" : ""} onClick={() => like(post.id)}>{post.liked ? "♥" : "♡"} {post.likes}</button><span>◌ {post.comments.length}</span></div>{post.comments.map((item) => <div className="comment" key={item.id}><strong>{item.authorName ?? "Участник"}</strong><span>{item.text}</span></div>)}{user && <div className="comment-input"><input value={comment[post.id] ?? ""} onChange={(event) => setComment({ ...comment, [post.id]: event.target.value })} placeholder="Написать комментарий…" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addComment(post.id); } }} /><button type="button" onClick={() => addComment(post.id)}>→</button></div>}</article>)}
   </section>;
 }
 
@@ -144,14 +150,14 @@ function Safety() {
   const [contactName, setContactName] = useState("");
   const [contactPhone, setContactPhone] = useState("");
   const [contactError, setContactError] = useState("");
-  useEffect(() => { window.LudoGuardNative?.enableUninstallGuard?.(); const enabled = window.LudoGuardNative?.isSiteMonitoringEnabled?.(); if (typeof enabled === "boolean") setSiteFilterEnabled(enabled); }, []);
+  useEffect(() => { window.GamblareNative?.enableUninstallGuard?.(); const enabled = window.GamblareNative?.isSiteMonitoringEnabled?.(); if (typeof enabled === "boolean") setSiteFilterEnabled(enabled); }, []);
   function setSiteFilter(value: boolean) {
     setSiteFilterEnabled(value);
-    if (typeof window !== "undefined") window.LudoGuardNative?.setSiteMonitoringEnabled?.(value);
+    if (typeof window !== "undefined") window.GamblareNative?.setSiteMonitoringEnabled?.(value);
   }
   async function loadContacts() {
     const response = await fetch("/api/emergency-contacts");
-    if (response.ok) { const next = (await response.json()).contacts ?? []; setContacts(next); if (next[0]) window.LudoGuardNative?.setEmergencyPhone?.(next[0].phone); }
+    if (response.ok) { const next = (await response.json()).contacts ?? []; setContacts(next); if (next[0]) window.GamblareNative?.setEmergencyPhone?.(next[0].phone); }
   }
   useEffect(() => { loadContacts(); }, []);
   async function addContact(event: FormEvent) {
@@ -161,12 +167,12 @@ function Safety() {
     const data = await response.json();
     if (!response.ok) { setContactError(data.error ?? "Не удалось добавить контакт."); return; }
     setContacts((current) => [...current, data.contact]);
-    window.LudoGuardNative?.setEmergencyPhone?.(data.contact.phone);
+    window.GamblareNative?.setEmergencyPhone?.(data.contact.phone);
     setContactName(""); setContactPhone(""); setShowContactForm(false);
   }
   async function removeContact(id: string) {
     const response = await fetch("/api/emergency-contacts", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    if (response.ok) setContacts((current) => { const next = current.filter((contact) => contact.id !== id); if (next[0]) window.LudoGuardNative?.setEmergencyPhone?.(next[0].phone); else window.LudoGuardNative?.clearEmergencyPhone?.(); return next; });
+    if (response.ok) setContacts((current) => { const next = current.filter((contact) => contact.id !== id); if (next[0]) window.GamblareNative?.setEmergencyPhone?.(next[0].phone); else window.GamblareNative?.clearEmergencyPhone?.(); return next; });
   }
   return <section className="page-section"><p className="eyebrow">НАСТРОЙКИ БЕЗОПАСНОСТИ</p><h1>Защита</h1><p className="lead">Ты выбираешь, какая поддержка тебе нужна.</p>
     <div className="settings-list"><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>{siteFilterEnabled ? "DNS-защита включена" : "DNS-защита выключена"}</p></div><button className={`toggle ${siteFilterEnabled ? "on" : ""}`} aria-label="Переключить фильтр сайтов" aria-pressed={siteFilterEnabled} onClick={() => setSiteFilter(!siteFilterEnabled)} /></div>{contacts.map((contact) => <div className="setting" key={contact.id}><div className="setting-icon orange">♧</div><div><strong>{contact.name}</strong><p>{contact.phone}</p></div><button className="contact-remove" onClick={() => removeContact(contact.id)} aria-label={`Удалить контакт ${contact.name}`}>×</button></div>)}{contacts.length < 3 && <button className="contact-add" onClick={() => { setShowContactForm(true); setContactError(""); }}>+ Добавить экстренный контакт <span>{contacts.length}/3</span></button>}{showContactForm && <form className="contact-form" onSubmit={addContact}><input required value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Имя контакта" /><input required value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Номер телефона" type="tel" />{contactError && <p className="form-error">{contactError}</p>}<div><button type="button" className="contact-cancel" onClick={() => setShowContactForm(false)}>Отмена</button><button className="primary" type="submit">Сохранить</button></div></form>}</div>
@@ -177,7 +183,7 @@ function Safety() {
 function Auth({ onAuth }: { onAuth: (user: User) => void }) {
   const [register, setRegister] = useState(false); const [name, setName] = useState(""); const [email, setEmail] = useState("arman@demo.kz"); const [password, setPassword] = useState("demo-password"); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
   async function submit(event: FormEvent) { event.preventDefault(); setLoading(true); setError(""); const response = await fetch(register ? "/api/auth/register" : "/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, email, password }) }); const data = await response.json(); setLoading(false); if (!response.ok) { setError(data.error); return; } onAuth(data.user); }
-  return <div className="auth-backdrop"><form className="auth-card" onSubmit={submit}><div className="auth-brand"><span className="brand-mark">✦</span> LUDOGUARD</div><p className="eyebrow">БЕЗОПАСНОЕ ПРОСТРАНСТВО</p><h1>{register ? "Создать аккаунт" : "С возвращением"}</h1><p className="auth-copy">{register ? "Начни путь к более спокойным отношениям с азартными играми." : "Войди, чтобы увидеть своё сообщество и настройки защиты."}</p>{register && <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя" /> }<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" /><input required minLength={4} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль" />{error && <p className="form-error">{error}</p>}<button className="primary full" disabled={loading}>{loading ? "Проверяем…" : register ? "Зарегистрироваться" : "Войти"}<span>→</span></button><button type="button" className="auth-switch" onClick={() => { setRegister(!register); setError(""); }}>{register ? "У меня уже есть аккаунт" : "Создать новый аккаунт"}</button><p className="demo-credentials">Демо: arman@demo.kz / demo-password</p></form></div>;
+  return <div className="auth-backdrop"><form className="auth-card" onSubmit={submit}><div className="auth-brand"><img className="auth-logo" src="/gamblare-logo.png" alt="" /> GAMBLARE</div><p className="eyebrow">БЕЗОПАСНОЕ ПРОСТРАНСТВО</p><h1>{register ? "Создать аккаунт" : "С возвращением"}</h1><p className="auth-copy">{register ? "Начни путь к более спокойным отношениям с азартными играми." : "Войди, чтобы увидеть своё сообщество и настройки защиты."}</p>{register && <input required value={name} onChange={(event) => setName(event.target.value)} placeholder="Имя" /> }<input required type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" /><input required minLength={4} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль" />{error && <p className="form-error">{error}</p>}<button className="primary full" disabled={loading}>{loading ? "Проверяем…" : register ? "Зарегистрироваться" : "Войти"}<span>→</span></button><button type="button" className="auth-switch" onClick={() => { setRegister(!register); setError(""); }}>{register ? "У меня уже есть аккаунт" : "Создать новый аккаунт"}</button><p className="demo-credentials">Демо: arman@demo.kz / demo-password</p></form></div>;
 }
 
 export default function Home() {
@@ -186,6 +192,6 @@ export default function Home() {
   const [authChecked, setAuthChecked] = useState(false);
   const [dark, setDark] = useState(false);
   useEffect(() => { fetch("/api/auth/me").then((response) => response.json()).then((data) => { setUser(data.user); setAuthChecked(true); }).catch(() => setAuthChecked(true)); }, []);
-  if (!authChecked) return <main className="app-shell"><div className="phone-frame auth-loading">Загрузка LudoGuard…</div></main>;
+  if (!authChecked) return <main className="app-shell"><div className="phone-frame auth-loading">Загрузка Gamblare…</div></main>;
   return <main className={`app-shell ${dark ? "theme-dark" : ""}`}>{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header dark={dark} onToggleTheme={() => setDark((value) => !value)} /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety />}</div><a className="help-call" href="tel:150"><span className="help-call-icon">☎</span><span><strong>Получить профессиональную помощь</strong><small>Бесплатная психологическая линия 150</small></span><b>→</b></a><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
 }
