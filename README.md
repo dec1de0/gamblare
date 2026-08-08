@@ -1,3 +1,16 @@
+
+<img width="500" height="1000" alt="image" src="https://github.com/user-attachments/assets/c420035a-378e-4f8b-b2a4-744399bb1142" />
+
+-----------
+<img width="500" height="1000" alt="image" src="https://github.com/user-attachments/assets/e017ac57-378d-42e6-b32e-21b30a02b284" />
+
+
+
+
+
+
+
+
 # Gamblare
 
 Gamblare — хакатонный прототип для раннего обнаружения рискованного игрового поведения и поддержки людей, столкнувшихся с лудоманией в Казахстане.
