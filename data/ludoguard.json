@@ -1,0 +1,36 @@
+{
+  "users": [
+    {
+      "id": "demo-user",
+      "name": "Арман",
+      "email": "arman@demo.kz",
+      "salt": "demo",
+      "passwordHash": "demo-password",
+      "createdAt": "2026-08-01T09:00:00.000Z"
+    }
+  ],
+  "posts": [
+    {
+      "id": "post-1",
+      "authorId": "community",
+      "authorName": "Анонимно",
+      "text": "Что помогает пережить желание сделать ставку? Я заметил, что короткая прогулка и звонок близкому помогают пережить первые 15 минут.",
+      "likes": 18,
+      "likedBy": [],
+      "comments": [
+        { "id": "comment-1", "authorName": "Меруерт", "text": "Спасибо, попробую сегодня.", "createdAt": "2026-08-08T10:20:00.000Z" }
+      ],
+      "createdAt": "2026-08-08T08:00:00.000Z"
+    },
+    {
+      "id": "post-2",
+      "authorId": "story",
+      "authorName": "Анонимно",
+      "text": "Четыре месяца без ставок. Я вернул доверие семьи и начал откладывать деньги на путешествие.",
+      "likes": 31,
+      "likedBy": [],
+      "comments": [],
+      "createdAt": "2026-08-07T16:00:00.000Z"
+    }
+  ]
+}

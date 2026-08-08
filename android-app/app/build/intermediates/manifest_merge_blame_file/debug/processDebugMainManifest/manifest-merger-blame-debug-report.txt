@@ -1,0 +1,72 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="kz.hackathon.ludoguard"
+4    android:versionCode="1"
+5    android:versionName="0.1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="35" />
+10
+11    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+11-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:2:5-114
+11-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:2:22-75
+12    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+12-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:3:5-77
+12-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:3:22-74
+13    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+13-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:4:5-77
+13-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:4:22-74
+14    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+14-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:5:5-87
+14-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:5:22-84
+15
+16    <application
+16-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:6:5-15:19
+17        android:allowBackup="false"
+17-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:6:83-110
+18        android:debuggable="true"
+19        android:extractNativeLibs="false"
+20        android:label="LudoGuard"
+20-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:6:57-82
+21        android:supportsRtl="true"
+21-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:6:111-137
+22        android:theme="@style/Theme.LudoGuard" >
+22-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:6:18-56
+23        <activity
+23-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:7:9-117
+24            android:name="kz.hackathon.ludoguard.InterventionActivity"
+24-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:7:19-55
+25            android:excludeFromRecents="true"
+25-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:7:81-114
+26            android:exported="false" />
+26-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:7:56-80
+27        <activity
+27-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:8:9-13:20
+28            android:name="kz.hackathon.ludoguard.MainActivity"
+28-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:8:19-47
+29            android:exported="true" >
+29-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:8:48-71
+30            <intent-filter>
+30-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:9:13-12:29
+31                <action android:name="android.intent.action.MAIN" />
+31-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:10:17-69
+31-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:10:25-66
+32
+33                <category android:name="android.intent.category.LAUNCHER" />
+33-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:11:17-77
+33-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:11:27-74
+34            </intent-filter>
+35        </activity>
+36
+37        <service
+37-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:14:9-122
+38            android:name="kz.hackathon.ludoguard.UsageMonitorService"
+38-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:14:18-53
+39            android:exported="false"
+39-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:14:54-78
+40            android:foregroundServiceType="dataSync" />
+40-->/Users/dec1de/Documents/ChatGPT/gamblare/android-app/app/src/main/AndroidManifest.xml:14:79-119
+41    </application>
+42
+43</manifest>

@@ -1,0 +1,1 @@
+kz.hackathon.ludoguard:style/Theme.LudoGuard = 0x7f010000

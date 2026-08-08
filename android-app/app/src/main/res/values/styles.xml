@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.LudoGuard" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#A8C94D</item>
+        <item name="android:navigationBarColor">#18231F</item>
+        <item name="android:statusBarColor">#18231F</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>
