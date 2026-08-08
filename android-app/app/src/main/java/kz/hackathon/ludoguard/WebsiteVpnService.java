@@ -52,7 +52,9 @@ public class WebsiteVpnService extends VpnService {
     }
     private void startVpn() {
         try {
-            vpn = new Builder().setSession("LudoGuard website protection").addAddress("10.0.0.2", 32).addRoute("1.1.1.1", 32).addDnsServer("1.1.1.1").establish();
+            // Android sends system DNS queries to this virtual resolver. The service
+            // can then inspect every regular DNS query before forwarding it upstream.
+            vpn = new Builder().setSession("LudoGuard website protection").addAddress("10.0.0.2", 32).addRoute("10.0.0.1", 32).addDnsServer("10.0.0.1").establish();
             running = true;
             worker = new Thread(this::readPackets, "ludoguard-dns"); worker.start();
         } catch (Exception ignored) { stopSelf(); }
