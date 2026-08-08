@@ -115,9 +115,9 @@ function Monitor() {
 }
 
 function Safety({ onMonitor }: { onMonitor: () => void }) {
-  const [monitoringEnabled, setMonitoringEnabled] = useState(true);
-  const [siteFilterEnabled, setSiteFilterEnabled] = useState(true);
-  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(true);
+  const [monitoringEnabled, setMonitoringEnabled] = useState(false);
+  const [siteFilterEnabled, setSiteFilterEnabled] = useState(false);
+  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(false);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactName, setContactName] = useState("");
