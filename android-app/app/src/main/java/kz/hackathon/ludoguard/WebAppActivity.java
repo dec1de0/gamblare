@@ -55,8 +55,10 @@ public class WebAppActivity extends Activity {
         super.onResume();
         if (!resumedOnce) { resumedOnce = true; return; }
         android.content.SharedPreferences prefs = getSharedPreferences("ludoguard_prefs", MODE_PRIVATE);
+        long lastChange = prefs.getLong("site_filter_changed_at", 0);
+        boolean monitoringSettled = System.currentTimeMillis() - lastChange > 15_000L;
         if (prefs.getBoolean("notification_permission_granted", false) && android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил разрешение на уведомления LudoGuard.");
-        if (prefs.getBoolean("site_filter_expected", false) && !WebsiteVpnService.isMonitoringEnabled(this)) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил VPN-защиту LudoGuard.");
+        if (monitoringSettled && prefs.getBoolean("site_filter_expected", false) && !WebsiteVpnService.isMonitoringEnabled(this)) WebsiteAlert.notifySecurityEvent(this, "Пользователь отключил VPN-защиту LudoGuard.");
     }
 
     @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
@@ -69,7 +71,7 @@ public class WebAppActivity extends Activity {
 
     private final class NativeBridge {
         @JavascriptInterface public void setSiteMonitoringEnabled(boolean enabled) {
-            runOnUiThread(() -> { getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", enabled).apply(); if (enabled) startWebsiteVpn(); else stopWebsiteVpn(); });
+            runOnUiThread(() -> { getSharedPreferences("ludoguard_prefs", MODE_PRIVATE).edit().putBoolean("site_filter_expected", enabled).putLong("site_filter_changed_at", System.currentTimeMillis()).apply(); if (enabled) startWebsiteVpn(); else stopWebsiteVpn(); });
         }
         @JavascriptInterface public boolean isSiteMonitoringEnabled() { return WebsiteVpnService.isMonitoringEnabled(WebAppActivity.this); }
         @JavascriptInterface public int getCurrentStreakDays() { return WebsiteAlert.getCurrentStreakDays(WebAppActivity.this); }

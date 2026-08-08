@@ -6,7 +6,7 @@ declare global {
   interface Window { LudoGuardNative?: { setSiteMonitoringEnabled?: (enabled: boolean) => void; isSiteMonitoringEnabled?: () => boolean; getCurrentStreakDays?: () => number; sendAiHighRiskAlert?: () => void; enableUninstallGuard?: () => void; setEmergencyPhone?: (phone: string) => void; clearEmergencyPhone?: () => void } }
 }
 
-type Tab = "home" | "chat" | "circle" | "safety" | "monitor";
+type Tab = "home" | "chat" | "circle" | "safety";
 type User = { id: string; name: string; email: string };
 type Comment = { id: string; text: string; createdAt: string };
 type Post = { id: string; text: string; likes: number; likedBy: string[]; liked?: boolean; comments: Comment[]; createdAt: string };
@@ -22,10 +22,13 @@ const tabs: { id: Tab; label: string; icon: string }[] = [
   { id: "safety", label: "Защита", icon: "◇" },
 ];
 
-function Header() {
+function Header({ dark, onToggleTheme }: { dark: boolean; onToggleTheme: () => void }) {
   return (
     <header className="topbar">
       <div className="brand"><span className="brand-mark">✦</span><span>LUDOGUARD</span></div>
+      <button className="theme-switch" onClick={onToggleTheme} aria-label="Переключить тему" aria-pressed={dark}>
+        <span>{dark ? "☀" : "☾"}</span>
+      </button>
     </header>
   );
 }
@@ -71,7 +74,7 @@ function Dashboard({ onTab }: { onTab: (tab: Tab) => void }) {
 }
 
 function Chat() {
-  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([{ role: "assistant", content: "Привет. Я рядом, если захочешь поговорить. Как прошёл твой день?" }]);
+  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([{ role: "assistant", content: "Привет. Здесь можно сказать честно, без оправданий. Что у тебя сейчас на уме?" }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [riskNotice, setRiskNotice] = useState("");
@@ -80,10 +83,18 @@ function Chat() {
   async function send(text = input) {
     if (!text.trim() || loading) return;
     const next = [...messages, { role: "user" as const, content: text.trim() }]; setMessages(next); setInput(""); setLoading(true);
-    try { const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) }); const data = await response.json(); if (data.risk === "high") window.LudoGuardNative?.sendAiHighRiskAlert?.(); setRiskNotice(data.egovReminder ? "Средний риск: в eGov Mobile открой «Услуги → Туризм и спорт → Сервис по ограничению участия в азартных играх и (или) пари»." : ""); setMessages([...next, { role: "assistant", content: data.content || data.error || "Сформулируй, что происходит прямо сейчас." }]); } finally { setLoading(false); }
+    try {
+      const response = await fetch("/api/ai/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messages: next }) });
+      const data = await response.json();
+      if (data.risk === "high") window.LudoGuardNative?.sendAiHighRiskAlert?.();
+      setRiskNotice(data.egovReminder ? "Средний риск: в eGov Mobile открой «Услуги → Туризм и спорт → Сервис по ограничению участия в азартных играх и (или) пари»." : "");
+      setMessages([...next, { role: "assistant", content: data.content || data.error || "Скажи прямо: что сейчас сильнее — желание поставить или тревога?" }]);
+    } catch {
+      setMessages([...next, { role: "assistant", content: "Связь с помощником прервалась. На ближайшие 10 минут закрой БК и переключись на человека, которому можно написать." }]);
+    } finally { setLoading(false); }
   }
-  return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК</p><div className="page-title-row"><div><h1>Как ты сегодня?</h1></div></div>
-    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /> Ludo AI <span className="chat-online">онлайн</span></div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("Мне тревожно")}>Мне тревожно</button><button onClick={() => send("Я хочу отыграться")}>Хочу отыграться</button></div>}<div className="chat-composer"><input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => event.key === "Enter" && send()} placeholder="Напиши, что происходит…" /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}>→</button></div></div>
+  return <section className="page-section"><p className="eyebrow">ЛИЧНЫЙ ПОМОЩНИК</p><div className="page-title-row"><div><h1>Поговорим честно</h1><p>Без оценки. С конкретным следующим шагом.</p></div></div>
+    <div className="chat-card"><div className="chat-meta"><span className="bot-dot" /><strong>Ludo AI</strong><span className="chat-online">в диалоге</span></div><div className="chat-history">{messages.map((message, index) => <div key={`${message.role}-${index}`} className={`bubble ${message.role === "user" ? "user" : "bot"}`}>{message.content}</div>)}{loading && <div className="bubble bot typing"><i /><i /><i /></div>}<div ref={endOfChat} /></div>{messages.length === 1 && <div className="quick-actions"><button onClick={() => send("У меня ломка, кажется буду ставить")}>Сильный импульс</button><button onClick={() => send("Я хочу азарта")}>Хочу азарта</button></div>}<div className="chat-composer"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); send(); } }} placeholder="Напиши как есть — я пойму…" rows={1} /><button onClick={() => send()} aria-label="Отправить" disabled={loading || !input.trim()}><span>↑</span></button></div></div>
     {riskNotice && <div className="egov-notice"><strong>Практический шаг</strong><p>{riskNotice}</p></div>}
     <div className="chat-disclaimer">Диалог помогает заметить изменения в состоянии. Это не медицинская диагностика.</div>
   </section>;
@@ -119,10 +130,8 @@ function Monitor() {
   return <section className="page-section"><p className="eyebrow">МОНИТОРИНГ</p><div className="page-title-row"><div><h1>Мониторинг БК</h1><p>Приложения и сайты под защитой.</p></div><span className="monitor-pulse">●</span></div><div className="monitor-banner"><span className="live-dot" /><div><strong>{data?.active ? "Мониторинг активен" : "Загрузка…"}</strong><p>Событие блокировки сразу сохраняется</p></div></div><div className="monitor-list">{data?.monitored.map((item) => <div className="monitor-item" key={item.name}><div className={`setting-icon ${item.risk === "high" ? "pink" : "orange"}`}>{item.type === "Веб-сайт" ? "⌁" : "▣"}</div><div><strong>{item.name}</strong><p>{item.type} · {item.status.toLowerCase()}</p></div><button className="monitor-trigger" onClick={() => simulateBlockedAttempt(item.name)}>Проверить</button></div>)}</div><p className="eyebrow event-label">ПОСЛЕДНИЕ СОБЫТИЯ</p>{error && <p className="form-error">{error}</p>}{data?.events.length ? data.events.map((event) => <div className="event-row" key={event.id}><span className="event-time">{event.time}</span><div><strong>{event.app}</strong><p>{event.action} · {event.result}</p></div></div>) : <p className="privacy-note">Заблокированных попыток пока нет.</p>}<p className="privacy-note">Кнопка «Проверить» имитирует событие Android-мониторинга для тестирования streak.</p></section>;
 }
 
-function Safety({ onMonitor }: { onMonitor: () => void }) {
-  const [monitoringEnabled, setMonitoringEnabled] = useState(false);
+function Safety() {
   const [siteFilterEnabled, setSiteFilterEnabled] = useState(false);
-  const [deletionSignalEnabled, setDeletionSignalEnabled] = useState(true);
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
   const [showContactForm, setShowContactForm] = useState(false);
   const [contactName, setContactName] = useState("");
@@ -153,8 +162,7 @@ function Safety({ onMonitor }: { onMonitor: () => void }) {
     if (response.ok) setContacts((current) => { const next = current.filter((contact) => contact.id !== id); if (next[0]) window.LudoGuardNative?.setEmergencyPhone?.(next[0].phone); else window.LudoGuardNative?.clearEmergencyPhone?.(); return next; });
   }
   return <section className="page-section"><p className="eyebrow">НАСТРОЙКИ БЕЗОПАСНОСТИ</p><h1>Защита</h1><p className="lead">Ты выбираешь, какая поддержка тебе нужна.</p>
-    <div className="settings-list"><div className="setting"><div className="setting-icon green">✓</div><div><strong>Мониторинг сайтов</strong><p>Букмекерские сайты</p></div><button className={`toggle ${monitoringEnabled ? "on" : ""}`} aria-label="Переключить мониторинг сайтов" aria-pressed={monitoringEnabled} onClick={() => setMonitoringEnabled((value) => !value)} /></div><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>{siteFilterEnabled ? "DNS-защита включена" : "DNS-защита выключена"}</p></div><button className={`toggle ${siteFilterEnabled ? "on" : ""}`} aria-label="Переключить фильтр сайтов" aria-pressed={siteFilterEnabled} onClick={() => setSiteFilter(!siteFilterEnabled)} /></div>{contacts.map((contact) => <div className="setting" key={contact.id}><div className="setting-icon orange">♧</div><div><strong>{contact.name}</strong><p>{contact.phone}</p></div><button className="contact-remove" onClick={() => removeContact(contact.id)} aria-label={`Удалить контакт ${contact.name}`}>×</button></div>)}{contacts.length < 3 && <button className="contact-add" onClick={() => { setShowContactForm(true); setContactError(""); }}>+ Добавить экстренный контакт <span>{contacts.length}/3</span></button>}{showContactForm && <form className="contact-form" onSubmit={addContact}><input required value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Имя контакта" /><input required value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Номер телефона" type="tel" />{contactError && <p className="form-error">{contactError}</p>}<div><button type="button" className="contact-cancel" onClick={() => setShowContactForm(false)}>Отмена</button><button className="primary" type="submit">Сохранить</button></div></form>}<div className="setting"><div className="setting-icon pink">!</div><div><strong>Сигнал при удалении</strong><p>{deletionSignalEnabled ? "Уведомить экстренный контакт" : "Уведомления выключены"}</p></div><button className={`toggle ${deletionSignalEnabled ? "on" : ""}`} aria-label="Переключить сигнал при удалении" aria-pressed={deletionSignalEnabled} onClick={() => setDeletionSignalEnabled((value) => !value)} /></div></div>
-    <div className="demo-trigger"><div><span className="eyebrow">ДЕМО МОНИТОРИНГА</span><strong>Открыть мониторинг БК</strong><p>Приложения, сайты и события</p></div><button onClick={onMonitor}>Открыть</button></div>
+    <div className="settings-list"><div className="setting"><div className="setting-icon purple">⌁</div><div><strong>Фильтр сайтов</strong><p>{siteFilterEnabled ? "DNS-защита включена" : "DNS-защита выключена"}</p></div><button className={`toggle ${siteFilterEnabled ? "on" : ""}`} aria-label="Переключить фильтр сайтов" aria-pressed={siteFilterEnabled} onClick={() => setSiteFilter(!siteFilterEnabled)} /></div>{contacts.map((contact) => <div className="setting" key={contact.id}><div className="setting-icon orange">♧</div><div><strong>{contact.name}</strong><p>{contact.phone}</p></div><button className="contact-remove" onClick={() => removeContact(contact.id)} aria-label={`Удалить контакт ${contact.name}`}>×</button></div>)}{contacts.length < 3 && <button className="contact-add" onClick={() => { setShowContactForm(true); setContactError(""); }}>+ Добавить экстренный контакт <span>{contacts.length}/3</span></button>}{showContactForm && <form className="contact-form" onSubmit={addContact}><input required value={contactName} onChange={(event) => setContactName(event.target.value)} placeholder="Имя контакта" /><input required value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} placeholder="Номер телефона" type="tel" />{contactError && <p className="form-error">{contactError}</p>}<div><button type="button" className="contact-cancel" onClick={() => setShowContactForm(false)}>Отмена</button><button className="primary" type="submit">Сохранить</button></div></form>}</div>
     <p className="privacy-note">Экстренный контакт получает уведомления только при срабатывании выбранного тобой сценария.</p>
   </section>;
 }
@@ -169,7 +177,8 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("home");
   const [user, setUser] = useState<User | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [dark, setDark] = useState(false);
   useEffect(() => { fetch("/api/auth/me").then((response) => response.json()).then((data) => { setUser(data.user); setAuthChecked(true); }).catch(() => setAuthChecked(true)); }, []);
   if (!authChecked) return <main className="app-shell"><div className="phone-frame auth-loading">Загрузка LudoGuard…</div></main>;
-  return <main className="app-shell">{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety onMonitor={() => setTab("monitor")} />}{tab === "monitor" && <Monitor />}</div><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
+  return <main className={`app-shell ${dark ? "theme-dark" : ""}`}>{!user && <Auth onAuth={setUser} />}<div className="phone-frame"><Header dark={dark} onToggleTheme={() => setDark((value) => !value)} /><div className="scroll-area">{tab === "home" && <Dashboard onTab={setTab} />}{tab === "chat" && <Chat />}{tab === "circle" && <Circle user={user} />}{tab === "safety" && <Safety />}</div><nav className="bottom-nav">{tabs.map(item => <button key={item.id} className={tab === item.id ? "nav-item active" : "nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{item.label}</small></button>)}</nav></div></main>;
 }
